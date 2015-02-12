@@ -1,5 +1,5 @@
 defmodule Tds.Ecto.StorageTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case#, async: true
 
   alias Tds.Ecto
 

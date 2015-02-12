@@ -1,7 +1,7 @@
 defmodule TDS.Ecto.TransactionTest do
   # We can keep this test async as long as it
   # is the only one access the transactions table
-  use ExUnit.Case, async: true
+  use ExUnit.Case#, async: true
 
   import Ecto.Query
   require Ecto.Integration.PoolRepo, as: PoolRepo

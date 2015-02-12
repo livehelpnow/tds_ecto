@@ -2,8 +2,6 @@ if Code.ensure_loaded?(Tds.Connection) do
   defmodule Tds.Ecto.Connection do
     @moduledoc false
 
-    require Logger
-
     @default_port System.get_env("MSSQL_PORT") || 1433
     @behaviour Ecto.Adapters.SQL.Connection
 
@@ -32,7 +30,6 @@ if Code.ensure_loaded?(Tds.Connection) do
           %Ecto.Query.Tagged{value: value, type: type} -> 
               {value, type}
           value -> 
-            Logger.info "Untagged Value"
             {param(value), nil}
         end
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
@@ -338,7 +335,6 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr({:fragment, _, parts}, sources) do
-      Logger.info "Fragment Query"
       Enum.map_join(parts, "", fn
         part when is_binary(part) -> part
         expr -> expr(expr, sources)
@@ -363,21 +359,15 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr(string, sources) when is_binary(string) do
-      Logger.info "EXPR String: #{string}"
       hex = string
         |> :unicode.characters_to_binary(:utf8, {:utf16, :little})
         |> Base.encode16(case: :lower)
-      bin = "CONVERT(nvarchar(max), 0x#{hex})"
-      IO.inspect bin
-      bin
+      "CONVERT(nvarchar(max), 0x#{hex})"
     end
 
     defp expr(%Ecto.Query.Tagged{value: binary, type: :binary}, _sources) when is_binary(binary) do
-      Logger.info "Tagged Binary"
       hex = Base.encode16(binary, case: :lower)
-      bin = "0x#{hex}"
-      Logger.info "Binary: #{bin}"
-      bin
+      "0x#{hex}"
     end
 
     defp expr(%Ecto.Query.Tagged{value: binary, type: :uuid}, _sources) when is_binary(binary) do
@@ -403,7 +393,6 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr(%Ecto.Query.Tagged{value: other, type: type}, sources) do
-      Logger.info "Type: #{type}"
       IO.inspect other
       expr(other, sources)
     end
