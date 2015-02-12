@@ -3,7 +3,7 @@
 MSSQL / TDS Adapter for Ecto
 
 ## Example
-```
+```elixir
 # In your config/config.exs file
 config :my_app, Repo,
   database: "ecto_simple",
@@ -52,14 +52,14 @@ end
 ```
 
 You should also update your applications list to include both projects:
-```
+```elixir
 def application do
   [applications: [:postgrex, :ecto]]
 end
 ```
 
 To use the adapter in your repo:
-```
+```elixir
 defmodule MyProject.TestRepo do
   use Ecto.Repo,
     otp_app: :ecto,
