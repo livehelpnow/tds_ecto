@@ -1,4 +1,4 @@
-# Tds
+# Tds.Ecto
 
 MSSQL / TDS Adapter for Ecto
 
