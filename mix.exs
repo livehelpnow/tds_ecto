@@ -14,18 +14,10 @@ defmodule TDS.Ecto.Mixfile do
   def application do
     [applications: [:logger]]
   end
-  
-  # Type `mix help deps` for more examples and options
-  defp deps do
-    [
-      {:ecto, git: "https://github.com/elixir-lang/ecto"},
-      {:tds, "~> 0.1"}
-    ]
-  end
 
   defp deps(:prod) do
     [
-      {:ecto, "~> 0.7"},
+      {:ecto, "~> 0.8"},
       {:tds, "~> 0.1"}
     ]
   end
