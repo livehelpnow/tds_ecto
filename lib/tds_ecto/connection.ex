@@ -197,7 +197,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp select(%SelectExpr{fields: fields}, limit, [], sources) do
       #IO.inspect limit
-      "SELECT " <> Enum.map_join(fields, ", ", &expr(&1, sources)) 
+      "SELECT " <> limit(limit, sources) <> Enum.map_join(fields, ", ", &expr(&1, sources)) 
     end
 
     defp select(%SelectExpr{fields: fields}, limit, distincts, sources) do
@@ -207,7 +207,7 @@ if Code.ensure_loaded?(Tds.Connection) do
             Enum.map_join(expr, ", ", &expr(&1, sources))
         end)
 
-      "SELECT DISTINCT " <> exprs
+      "SELECT DISTINCT " <> limit(limit, sources) <> exprs
     end
 
     defp from(sources, lock) do
@@ -275,9 +275,9 @@ if Code.ensure_loaded?(Tds.Connection) do
       end
     end
 
-    defp limit(nil, _sources), do: nil
+    defp limit(nil, _sources), do: ""
     defp limit(%Ecto.Query.QueryExpr{expr: expr}, sources) do
-      "LIMIT " <> expr(expr, sources)
+      "TOP(" <> expr(expr, sources) <> ") "
     end
 
     defp offset(nil, _sources), do: nil
