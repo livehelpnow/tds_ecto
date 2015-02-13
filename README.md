@@ -70,21 +70,21 @@ end
 For additional information on usage please see the documentation for [Ecto](http://hexdocs.pm/ecto).
 
 ## Data Type Mapping
-MSSQL datatypes are mapped to the following Ecto datatypes
-	MSSQL             Ecto
-    ----------        ------
-    nvarchar          :string
-    varchar			  :binary
-    char              :binary
-    varbinary		  :binary
-    float             :float
-    decimal           :decimal
-    integer 		  :integer
-    bit 			  :boolean
-    uniqueidentifier  :uuid
-    datetime		  :datetime
-    date			  :date
-    time 			  :time
+
+	MSSQL             	Ecto
+	----------        	------
+	nvarchar          	:string
+	varchar			  	:binary
+	char              	:binary
+	varbinary		  	:binary
+	float             	:float
+	decimal           	:decimal
+	integer 		  	:integer
+	bit 			  	:boolean
+	uniqueidentifier  	:uuid
+	datetime		  	:datetime
+	date			  	:date
+	time 			  	:time
 
 
 ## Contributing
