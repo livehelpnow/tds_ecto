@@ -1,3 +1,6 @@
+# v0.1.1-dev
+* Bug Fixes
+  * Fixed limit: to map TOP in SELECT
 
 # v0.1.0 (2015-02-13)
 * Enhancements
