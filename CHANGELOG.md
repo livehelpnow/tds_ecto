@@ -1,3 +1,7 @@
+# v0.1.3
+* Bug Fixes
+  * Fixing deps issue with Hex
+
 # v0.1.2
 * Bug Fixes
   * Added lock to join/2
