@@ -224,7 +224,7 @@ if Code.ensure_loaded?(Tds.Connection) do
           on   = expr(expr, sources)
           qual = join_qual(qual)
 
-          "#{qual} JOIN #{quote_name(table)} AS #{name} " <> lock <> " ON " <> on
+          "#{qual} JOIN #{quote_name(table)} AS #{name} " <> lock(lock) <> " ON " <> on
       end)
     end
 
