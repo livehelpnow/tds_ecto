@@ -1,3 +1,7 @@
+# v0.1.2-dev
+* Bug Fixes
+  * Added lock to join/2
+
 # v0.1.1
 * Bug Fixes
   * Fixed limit: to map TOP in SELECT

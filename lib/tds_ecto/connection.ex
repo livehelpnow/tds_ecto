@@ -105,7 +105,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
       from     = from(sources, query.lock)
       select   = select(query.select, query.limit, query.distincts, sources)
-      join     = join(query.joins, sources)
+      join     = join(query.joins, sources, query.lock)
       where    = where(query.wheres, sources)
       group_by = group_by(query.group_bys, sources)
       having   = having(query.havings, sources)
@@ -215,8 +215,8 @@ if Code.ensure_loaded?(Tds.Connection) do
       "FROM #{quote_name(table)} AS #{name} " <> lock(lock)
     end
 
-    defp join([], _sources), do: nil
-    defp join(joins, sources) do
+    defp join([], _sources, _lock), do: nil
+    defp join(joins, sources, lock) do
       Enum.map_join(joins, " ", fn
         %JoinExpr{on: %QueryExpr{expr: expr}, qual: qual, ix: ix} ->
           {table, name, _model} = elem(sources, ix)
@@ -224,7 +224,7 @@ if Code.ensure_loaded?(Tds.Connection) do
           on   = expr(expr, sources)
           qual = join_qual(qual)
 
-          "#{qual} JOIN #{quote_name(table)} AS #{name} ON " <> on
+          "#{qual} JOIN #{quote_name(table)} AS #{name} " <> lock <> " ON " <> on
       end)
     end
 
