@@ -3,7 +3,7 @@ defmodule TDS.Ecto.Mixfile do
 
   def project do
     [app: :tds_ecto,
-     version: "0.1.3",
+     version: "0.1.4",
      elixir: "~> 1.0",
      deps: deps(Mix.env)]
   end
@@ -12,7 +12,7 @@ defmodule TDS.Ecto.Mixfile do
   #
   # Type `mix help compile.app` for more information
   def application do
-    [applications: [:logger]]
+    [applications: [:tds]]
   end
 
   defp deps(:prod) do

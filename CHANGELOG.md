@@ -1,3 +1,7 @@
+# v0.1.4
+* Bug Fixes
+  * Added :tds to application list
+
 # v0.1.3
 * Bug Fixes
   * Fixing deps issue with Hex
