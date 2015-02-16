@@ -1,4 +1,4 @@
-# v0.1.2-dev
+# v0.1.2
 * Bug Fixes
   * Added lock to join/2
 
