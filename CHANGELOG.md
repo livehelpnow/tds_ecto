@@ -1,3 +1,7 @@
+# v0.1.5-dev
+* Enhancements
+  * Added support for UNIQUE in column definitions
+
 # v0.1.4
 * Bug Fixes
   * Added :tds to application list
