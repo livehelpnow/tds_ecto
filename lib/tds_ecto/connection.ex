@@ -393,7 +393,6 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr(%Ecto.Query.Tagged{value: other, type: type}, sources) do
-      IO.inspect other
       expr(other, sources)
     end
 
@@ -466,7 +465,13 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     def execute_ddl({:create, %Table{}=table, columns}) do
-      "CREATE TABLE #{quote_name(table.name)} (#{column_definitions(columns)})"
+      unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->  
+        if Keyword.get(opts, :unique) != nil, do: List.flatten([{name, type}|acc]), else: acc
+      end)
+      unique_constraints = unique_columns
+        |> Enum.map_join(", ", &unique_expr/1)
+      "CREATE TABLE #{quote_name(table.name)} (#{column_definitions(columns)}" <>
+      if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")"
     end
 
     def execute_ddl({:drop, %Table{name: name}}) do
@@ -527,6 +532,14 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp serial_expr(:serial), do: "IDENTITY"
     defp serial_expr(_), do: nil
+
+    defp unique_expr({name, type}) when type in [:string, :text] do
+      raise "UNIQUE Indexes are not allowed on string types"
+    end
+    defp unique_expr({name, type}) when is_atom(name) do
+      "CONSTRAINT uc_#{name} UNIQUE (#{quote_name(name)})"
+    end
+    defp unique_expr(_), do: ""
 
     defp null_expr(false), do: "NOT NULL"
     defp null_expr(true), do: "NULL"
@@ -591,7 +604,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp ecto_to_db(:string),     do: "nvarchar"
     defp ecto_to_db(:binary),     do: "varbinary"
-    defp ecto_to_db(:boolean),     do: "bit"
+    defp ecto_to_db(:boolean),    do: "bit"
     defp ecto_to_db(other),       do: Atom.to_string(other)
   end
 end
