@@ -17,7 +17,7 @@ defmodule TDS.Ecto.Mixfile do
 
   defp deps(:prod) do
     [
-      {:ecto, "~> 0.8"},
+      {:ecto, github: "elixir-lang/ecto"},
       {:tds, "~> 0.1"}
     ]
   end
