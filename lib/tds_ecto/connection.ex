@@ -2,6 +2,8 @@ if Code.ensure_loaded?(Tds.Connection) do
   defmodule Tds.Ecto.Connection do
     @moduledoc false
 
+    require Logger
+
     @default_port System.get_env("MSSQL_PORT") || 1433
     @behaviour Ecto.Adapters.SQL.Connection
 
@@ -27,9 +29,12 @@ if Code.ensure_loaded?(Tds.Connection) do
           %Ecto.Query.Tagged{value: value, type: :binary} -> 
             value = if value == "", do: nil, else: value
             {value, :binary}
+          %Ecto.Query.Tagged{value: value, type: :uuid} -> 
+            {value, :string}
           %Ecto.Query.Tagged{value: value, type: type} -> 
-              {value, type}
+            {value, type}
           value -> 
+            Logger.debug "Param: #{inspect param}"
             {param(value), nil}
         end
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
@@ -371,6 +376,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr(%Ecto.Query.Tagged{value: binary, type: :uuid}, _sources) when is_binary(binary) do
+      Logger.debug "UUID Tagged"
       <<
        p1::binary-size(1),
        p2::binary-size(1), 
