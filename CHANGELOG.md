@@ -1,7 +1,9 @@
+# v0.1.6-dev
+
 # v0.1.5-dev
 * Bug Fixes
   * Ecto.UUID tagged types were failing to be type checked in tds
-  
+
 * Enhancements
   * Added support for UNIQUE in column definitions
 
