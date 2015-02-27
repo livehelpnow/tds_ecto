@@ -27,8 +27,13 @@ if Code.ensure_loaded?(Tds.Connection) do
           %Ecto.Query.Tagged{value: value, type: :binary} -> 
             value = if value == "", do: nil, else: value
             {value, :binary}
-          %Ecto.Query.Tagged{value: value, type: :uuid} -> 
-            {value, :string}
+          %Ecto.Query.Tagged{value: value, type: :uuid} ->
+            cond do
+              String.contains?(value, "-") -> 
+                {:ok, value} = Ecto.UUID.load(value)
+                {value, :string}
+              true -> {value, :binary}
+            end
           %Ecto.Query.Tagged{value: value, type: type} -> 
             {value, type}
           value -> 
