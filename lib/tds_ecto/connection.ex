@@ -30,9 +30,10 @@ if Code.ensure_loaded?(Tds.Connection) do
           %Ecto.Query.Tagged{value: value, type: :uuid} ->
             cond do
               String.contains?(value, "-") -> 
-                {:ok, value} = Ecto.UUID.load(value)
+                {:ok, value} = Ecto.UUID.cast(value)
                 {value, :string}
-              true -> {value, :binary}
+              true -> 
+                {uuid(value), :binary}
             end
           %Ecto.Query.Tagged{value: value, type: type} -> 
             {value, type}
@@ -50,27 +51,6 @@ if Code.ensure_loaded?(Tds.Connection) do
       end
     end
 
-    # def query(conn, {sql, types}, params, opts) do
-    #   #IO.inspect opts
-    #   #IO.inspect params
-    #   #IO.inspect types
-    #   {params, _} = Enum.map_reduce(params, 1, fn(param, acc) -> 
-    #       case Enum.fetch(types, acc-1) do
-    #         {:ok, {c, t}} -> type = t
-    #         :error -> type = nil
-    #       end
-    #       {%Tds.Parameter{name: "@#{acc}", value: transform_value(param), type: type}, acc + 1}
-    #   end)
-    #   case Tds.Connection.query(conn, sql, params, opts) do
-    #     {:ok, %Tds.Result{} = result} -> {:ok, Map.from_struct(result)}
-    #     {:error, %Tds.Error{}} = err  -> err
-    #   end
-    # end
-
-
-    # defp transform_value(string) when is_binary(string) do
-
-    # end
     defp param(value) when is_binary(value) do
       value
         |> :unicode.characters_to_binary(:utf8, {:utf16, :little})
@@ -378,25 +358,8 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr(%Ecto.Query.Tagged{value: binary, type: :uuid}, _sources) when is_binary(binary) do
-      <<
-       p1::binary-size(1),
-       p2::binary-size(1), 
-       p3::binary-size(1), 
-       p4::binary-size(1), 
-       p5::binary-size(1), 
-       p6::binary-size(1), 
-       p7::binary-size(1), 
-       p8::binary-size(1), 
-       p9::binary-size(1), 
-       p10::binary-size(1), 
-       p11::binary-size(1), 
-       p12::binary-size(1), 
-       p13::binary-size(1), 
-       p14::binary-size(1), 
-       p15::binary-size(1), 
-       p16::binary-size(1)>> = binary
-
-       p4 <> p3 <> p2 <>p1 <> p6 <> p5 <> p8 <> p7 <> p9 <> p10 <> p11 <> p12 <> p13 <> p14 <> p15 <> p16
+      if String.contains?(binary, "-"), do: {:ok, binary} = Ecto.UUID.dump(binary)
+      uuid(binary)
     end
 
     defp expr(%Ecto.Query.Tagged{value: other, type: type}, sources) do
@@ -613,5 +576,27 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp ecto_to_db(:binary),     do: "varbinary"
     defp ecto_to_db(:boolean),    do: "bit"
     defp ecto_to_db(other),       do: Atom.to_string(other)
+
+    defp uuid(binary) do
+      <<
+       p1::binary-size(1),
+       p2::binary-size(1), 
+       p3::binary-size(1), 
+       p4::binary-size(1), 
+       p5::binary-size(1), 
+       p6::binary-size(1), 
+       p7::binary-size(1), 
+       p8::binary-size(1), 
+       p9::binary-size(1), 
+       p10::binary-size(1), 
+       p11::binary-size(1), 
+       p12::binary-size(1), 
+       p13::binary-size(1), 
+       p14::binary-size(1), 
+       p15::binary-size(1), 
+       p16::binary-size(1)>> = binary
+
+       p4 <> p3 <> p2 <>p1 <> p6 <> p5 <> p8 <> p7 <> p9 <> p10 <> p11 <> p12 <> p13 <> p14 <> p15 <> p16
+    end
   end
 end
