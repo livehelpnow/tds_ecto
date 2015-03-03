@@ -2,10 +2,16 @@ if Code.ensure_loaded?(Tds.Connection) do
   defmodule Tds.Ecto.Connection do
     @moduledoc false
 
-    @default_port System.get_env("MSSQL_PORT") || 1433
+    require Logger
+
+
+    @default_port System.get_env("MSSQLPORT") || 1433
     @behaviour Ecto.Adapters.SQL.Connection
 
     def connect(opts) do
+      opts = opts 
+        |> Keyword.put_new(:port, @default_port)
+      Logger.debug "Conn Opts: #{inspect opts}"
       Tds.Connection.start_link(opts)
     end
 
@@ -25,10 +31,14 @@ if Code.ensure_loaded?(Tds.Connection) do
               value = if value == true, do: 1, else: 0
               {value, :boolean}
           %Ecto.Query.Tagged{value: value, type: :binary} -> 
-            value = if value == "", do: nil, else: value
-            {value, :binary}
+            Logger.debug "Here"
+            type = if value == "", do: :string, else: :binary
+            {value, type}
+          %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} -> 
+            {{{y,m,d},{hh,mm,ss}}, :datetime}
           %Ecto.Query.Tagged{value: value, type: :uuid} ->
             cond do
+              value == nil -> {nil, :binary}
               String.contains?(value, "-") -> 
                 {:ok, value} = Ecto.UUID.cast(value)
                 {value, :string}
@@ -91,7 +101,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       sources = create_names(query)
 
       from     = from(sources, query.lock)
-      select   = select(query.select, query.limit, query.distincts, sources)
+      select   = select(query.select, query.limit, query.distinct, sources)
       join     = join(query.joins, sources, query.lock)
       where    = where(query.wheres, sources)
       group_by = group_by(query.group_bys, sources)
@@ -187,14 +197,18 @@ if Code.ensure_loaded?(Tds.Connection) do
       "SELECT " <> limit(limit, sources) <> Enum.map_join(fields, ", ", &expr(&1, sources)) 
     end
 
-    defp select(%SelectExpr{fields: fields}, limit, distincts, sources) do
-      exprs =
-        Enum.map_join(distincts, ", ", fn
-          %QueryExpr{expr: expr} ->
-            Enum.map_join(expr, ", ", &expr(&1, sources))
-        end)
+    defp select(%SelectExpr{fields: fields}, limit, distinct, sources) do
+      "SELECT " <>
+        distinct(distinct, sources) <>
+        limit(limit, sources) <>
+        Enum.map_join(fields, ", ", &expr(&1, sources))
+    end
 
-      "SELECT DISTINCT " <> limit(limit, sources) <> exprs
+    defp distinct(nil, _sources), do: ""
+    defp distinct(%QueryExpr{expr: true}, _sources),  do: "DISTINCT "
+    defp distinct(%QueryExpr{expr: false}, _sources), do: ""
+    defp distinct(%QueryExpr{expr: exprs}, sources) when is_list(exprs) do
+      "DISTINCT " <> Enum.map_join(exprs, ", ", &expr(&1, sources)) <> ""
     end
 
     defp from(sources, lock) do
@@ -532,7 +546,8 @@ if Code.ensure_loaded?(Tds.Connection) do
       do: literal
 
     defp column_type(%Reference{} = ref, opts) do
-      "bigint REFERENCES #{quote_name(ref.table)}(#{quote_name(ref.column)})"
+      "#{reference_column_type(ref.type, opts)} REFERENCES " <>
+      "#{quote_name(ref.table)}(#{quote_name(ref.column)})"
     end
     defp column_type({:array, type}, opts),
       do: raise "Array column type is not supported for MSSQL"
@@ -556,6 +571,10 @@ if Code.ensure_loaded?(Tds.Connection) do
         true            -> "#{type_name}"
       end
     end
+
+
+    defp reference_column_type(:serial, _opts), do: "bigint"
+    defp reference_column_type(type, opts), do: column_type(type, opts)
 
     ## Helpers
 

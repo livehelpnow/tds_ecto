@@ -1,4 +1,4 @@
-Code.require_file "../deps/ecto/test/support/types.exs", __DIR__
+Code.require_file "../deps/ecto/integration_test/support/types.exs", __DIR__
 
 defmodule Tds.Ecto.TdsTest do
   use ExUnit.Case, async: true

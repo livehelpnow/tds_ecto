@@ -1,6 +1,10 @@
-# v0.1.6-dev
+# v0.2.0-dev
+* Bug Fixes
+  * Parsing null uuid's would break String check
+  * Allow references to be set for other primary key types
+  * Allow distincts on booleans
 
-# v0.1.5-dev
+# v0.1.5
 * Bug Fixes
   * Ecto.UUID tagged types were failing to be type checked in tds
 
