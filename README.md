@@ -47,7 +47,7 @@ Add Tds as a dependency in your `mix.exs` file.
 
 ```elixir
 def deps do
-  [{:tds_ecto, "~> 0.1"}]
+  [{:tds_ecto, "~> 0.2"}]
 end
 ```
 

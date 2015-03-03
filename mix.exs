@@ -21,7 +21,7 @@ defmodule TDS.Ecto.Mixfile do
 
   defp deps(:prod) do
     [
-      {:ecto, github: "elixir-lang/ecto"},
+      {:ecto, "~> 0.9"},
       {:tds, "~> 0.1"}
     ]
   end
@@ -29,7 +29,7 @@ defmodule TDS.Ecto.Mixfile do
   defp deps(_) do
     [
       {:ecto, github: "elixir-lang/ecto"},
-      {:tds, path: "../tds"}
+      {:tds, github: "livehelpnow/tds"}
     ]
   end
 
