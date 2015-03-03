@@ -50,6 +50,8 @@ defmodule Tds.Ecto do
     * `:lc_ctype` - the character classification
 
   """
+
+  require Logger
   require Tds
   use Ecto.Adapters.SQL, :tds
   @behaviour Ecto.Adapter.Storage
@@ -85,7 +87,10 @@ defmodule Tds.Ecto do
   end
 
   defp run_with_sql_conn(opts, sql_command) do
-    opts = opts |> Keyword.put(:database, "master")
+    host = opts[:hostname] || System.get_env("MSSQLHOST") || "localhost"
+    opts = opts 
+      |> Keyword.put(:database, "master")
+      |> Keyword.put(:hostname, host)
     case Tds.Ecto.Connection.connect(opts) do
       {:ok, pid} ->
         # Execute the query

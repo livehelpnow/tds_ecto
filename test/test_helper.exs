@@ -1,30 +1,32 @@
-Logger.configure(level: :info)
+System.at_exit fn _ -> Logger.flush end
+Logger.configure(level: :debug)
 ExUnit.start exclude: [:assigns_primary_key, :array_type, :case_sensitive]
 # Basic test repo
 alias Ecto.Integration.TestRepo
-
+require Logger
 Application.put_env(:ecto, TestRepo,
+  adapter: Tds.Ecto,
   url: "ecto://mssql:mssql@mssql.local/ecto_test",
   size: 1,
   max_overflow: 0)
 
 defmodule Ecto.Integration.TestRepo do
   use Ecto.Repo,
-    otp_app: :ecto,
-    adapter: Tds.Ecto
+    otp_app: :ecto
 end
 
 # Pool repo for transaction and lock tests
 alias Ecto.Integration.PoolRepo
 
 Application.put_env(:ecto, PoolRepo,
+  adapter: Tds.Ecto,
   url: "ecto://mssql:mssql@mssql.local/ecto_test",
-  size: 10)
+  size: 10,
+  max_overflow: 0)
 
 defmodule Ecto.Integration.PoolRepo do
   use Ecto.Repo,
-    otp_app: :ecto,
-    adapter: Tds.Ecto
+    otp_app: :ecto
 
     def lock_for_update, do: "WITH(UPDLOCK)"
 end
@@ -61,6 +63,8 @@ defmodule Ecto.Integration.Case do
     :ok 
   end
 end
+
+
 :erlang.system_flag :backtrace_depth, 50
 # Load support models and migration
 Code.require_file "../deps/ecto/integration_test/support/models.exs", __DIR__
@@ -70,7 +74,6 @@ Code.require_file "../deps/ecto/integration_test/cases/migration.exs", __DIR__
 Code.require_file "../deps/ecto/integration_test/cases/repo.exs", __DIR__
 Code.require_file "../deps/ecto/integration_test/cases/preload.exs", __DIR__
 Code.require_file "../deps/ecto/integration_test/cases/sql_escape.exs", __DIR__
-Code.require_file "transaction_test.exs", __DIR__
 
 
 # Load up the repository, start it, and run migrations
@@ -80,4 +83,4 @@ _   = Ecto.Storage.down(TestRepo)
 {:ok, _pid} = TestRepo.start_link
 {:ok, _pid} = PoolRepo.start_link
 
-:ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)
+:ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration)
