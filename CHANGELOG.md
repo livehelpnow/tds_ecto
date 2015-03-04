@@ -1,4 +1,4 @@
-# v0.2.0-dev
+# v0.2.0
 * Bug Fixes
   * Parsing null uuid's would break String check
   * Allow references to be set for other primary key types
