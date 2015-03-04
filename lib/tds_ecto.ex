@@ -26,6 +26,9 @@ defmodule Tds.Ecto do
     * `:adapter` - The adapter name, in this case, `Tds.Ecto`
     * `:timeout` - The default timeout to use on queries, defaults to `5000`
 
+  ### Repo options
+    * `:filter_null_on_unique_indexes` - Allows unique indexes to filter out null and only match on NOT NULL values
+
   ### Connection options
 
     * `:hostname` - Server hostname
@@ -50,8 +53,6 @@ defmodule Tds.Ecto do
     * `:lc_ctype` - the character classification
 
   """
-
-  require Logger
   require Tds
   use Ecto.Adapters.SQL, :tds
   @behaviour Ecto.Adapter.Storage
@@ -84,6 +85,12 @@ defmodule Tds.Ecto do
       output != nil -> if String.contains?(output[:msg_text], "does not exist"), do: {:error, :already_down}
       true                                       -> {:error, output}
     end
+  end
+
+  def execute_ddl(repo, definition, opts) do
+    sql = @conn.execute_ddl(definition, repo)
+    Ecto.Adapters.SQL.query(repo, sql, [], opts)
+    :ok
   end
 
   defp run_with_sql_conn(opts, sql_command) do

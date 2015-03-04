@@ -4,14 +4,12 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     require Logger
 
-
     @default_port System.get_env("MSSQLPORT") || 1433
     @behaviour Ecto.Adapters.SQL.Connection
 
     def connect(opts) do
       opts = opts 
         |> Keyword.put_new(:port, @default_port)
-      Logger.debug "Conn Opts: #{inspect opts}"
       Tds.Connection.start_link(opts)
     end
 
@@ -31,7 +29,6 @@ if Code.ensure_loaded?(Tds.Connection) do
               value = if value == true, do: 1, else: 0
               {value, :boolean}
           %Ecto.Query.Tagged{value: value, type: :binary} -> 
-            Logger.debug "Here"
             type = if value == "", do: :string, else: :binary
             {value, type}
           %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} -> 
@@ -448,7 +445,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       """
     end
 
-    def execute_ddl({:create, %Table{}=table, columns}) do
+    def execute_ddl({:create, %Table{}=table, columns}, repo) do
       unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->  
         if Keyword.get(opts, :unique) != nil, do: List.flatten([{name, type}|acc]), else: acc
       end)
@@ -458,28 +455,35 @@ if Code.ensure_loaded?(Tds.Connection) do
       if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")"
     end
 
-    def execute_ddl({:drop, %Table{name: name}}) do
+    def execute_ddl({:drop, %Table{name: name}}, repo) do
       "DROP TABLE #{quote_name(name)}"
     end
 
-    def execute_ddl({:alter, %Table{}=table, changes}) do
+    def execute_ddl({:alter, %Table{}=table, changes}, repo) do
       Enum.map_join(changes, "; ", fn(change) -> 
         "ALTER TABLE #{quote_name(table.name)} #{column_change(change)}"
       end)
     end
 
-    def execute_ddl({:create, %Index{}=index}) do
-      #IO.inspect index.columns
+    def execute_ddl({:create, %Index{}=index}, repo) do
+      Logger.debug "Repo Config: #{inspect repo.config}"
+      filter = 
+      if (repo.config[:filter_null_on_unique_indexes] == true and index.unique) do
+        " WHERE #{Enum.map_join(index.columns, " AND ", fn(column) -> "#{column} IS NOT NULL" end)}"
+      else 
+        ""
+      end
       assemble(["CREATE#{if index.unique, do: " UNIQUE"} INDEX",
                 quote_name(index.name), " ON ", quote_name(index.table),
-                " (#{Enum.map_join(index.columns, ", ", &index_expr/1)})"])
+                " (#{Enum.map_join(index.columns, ", ", &index_expr/1)})",
+                filter])
     end
 
-    def execute_ddl({:drop, %Index{}=index}) do
+    def execute_ddl({:drop, %Index{}=index}, repo) do
       assemble(["DROP INDEX", quote_name(index.name), " ON ", quote_name(index.table)])
     end
 
-    def execute_ddl(default) when is_binary(default), do: default
+    def execute_ddl(default, repo) when is_binary(default), do: default
 
     defp column_definitions(columns) do
       Enum.map_join(columns, ", ", &column_definition/1)
