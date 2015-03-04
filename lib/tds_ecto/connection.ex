@@ -204,8 +204,8 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp distinct(nil, _sources), do: ""
     defp distinct(%QueryExpr{expr: true}, _sources),  do: "DISTINCT "
     defp distinct(%QueryExpr{expr: false}, _sources), do: ""
-    defp distinct(%QueryExpr{expr: exprs}, sources) when is_list(exprs) do
-      "DISTINCT " <> Enum.map_join(exprs, ", ", &expr(&1, sources)) <> ""
+    defp distinct(%QueryExpr{expr: exprs}, sources) do
+      raise "MSSQL does not allow expressions in distinct"
     end
 
     defp from(sources, lock) do
