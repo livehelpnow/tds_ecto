@@ -22,7 +22,7 @@ defmodule TDS.Ecto.Mixfile do
   defp deps(:prod) do
     [
       {:ecto, "~> 0.9"},
-      {:tds, "~> 0.1"}
+      {:tds, "~> 0.2"}
     ]
   end
  

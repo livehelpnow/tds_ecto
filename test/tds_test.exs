@@ -60,7 +60,7 @@ defmodule Tds.Ecto.TdsTest do
                 {:add, :is_active, :boolean, [default: true]},
                 {:add, :slug, :text, [null: false]}]}
                 
-    assert SQL.execute_ddl(create) == """
+    assert SQL.execute_ddl(create, nil) == """
     CREATE TABLE [posts] ([name] nvarchar(20) DEFAULT 'Untitled' NOT NULL,
     [price] decimal(15,14) DEFAULT PI() NULL,
     [on_hand] integer DEFAULT 0 NULL,

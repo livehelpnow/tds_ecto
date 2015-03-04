@@ -1,11 +1,12 @@
-System.at_exit fn _ -> Logger.flush end
-Logger.configure(level: :debug)
+#System.at_exit fn _ -> Logger.flush end
+Logger.configure(level: :info)
 ExUnit.start exclude: [:assigns_primary_key, :array_type, :case_sensitive]
 # Basic test repo
 alias Ecto.Integration.TestRepo
-require Logger
+
 Application.put_env(:ecto, TestRepo,
   adapter: Tds.Ecto,
+  filter_null_on_unique_indexes: true,
   url: "ecto://mssql:mssql@mssql.local/ecto_test",
   size: 1,
   max_overflow: 0)
@@ -20,6 +21,7 @@ alias Ecto.Integration.PoolRepo
 
 Application.put_env(:ecto, PoolRepo,
   adapter: Tds.Ecto,
+  filter_null_on_unique_indexes: true,
   url: "ecto://mssql:mssql@mssql.local/ecto_test",
   size: 10,
   max_overflow: 0)
@@ -83,4 +85,4 @@ _   = Ecto.Storage.down(TestRepo)
 {:ok, _pid} = TestRepo.start_link
 {:ok, _pid} = PoolRepo.start_link
 
-:ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration)
+:ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)
