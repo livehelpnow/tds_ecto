@@ -103,7 +103,7 @@ defmodule Tds.Ecto do
         # Execute the query
         case Tds.Ecto.Connection.query(pid, sql_command, [], []) do
           {:ok, %{}} -> {:ok, 0}
-          {_, %Tds.Error{message: message, mssql: error}} ->
+          {_, %Tds.Error{message: _message, mssql: error}} ->
             {error, 1}
         end
       {_,error} -> 
