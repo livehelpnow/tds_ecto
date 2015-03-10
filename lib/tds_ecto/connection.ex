@@ -32,7 +32,10 @@ if Code.ensure_loaded?(Tds.Connection) do
             type = if value == "", do: :string, else: :binary
             {value, type}
           %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} -> 
-            {{{y,m,d},{hh,mm,ss}}, :datetime}
+            cond do
+              us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
+              true -> {{{y,m,d},{hh,mm,ss}}, :datetime}
+            end
           %Ecto.Query.Tagged{value: value, type: :uuid} ->
             cond do
               value == nil -> {nil, :binary}
@@ -123,9 +126,9 @@ if Code.ensure_loaded?(Tds.Connection) do
 
       where = where(query.wheres, sources)
       where = if where, do: " " <> where, else: ""
-      fields = Enum.map(values, fn {field, value} -> 
-        field
-      end)
+      # fields = Enum.map(values, fn {field, value} -> 
+      #   field
+      # end)
       "UPDATE #{name} " <>
         "SET " <> zipped_sql <> " FROM #{quote_name(table)} AS #{name} " <> 
         where
@@ -204,7 +207,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp distinct(nil, _sources), do: ""
     defp distinct(%QueryExpr{expr: true}, _sources),  do: "DISTINCT "
     defp distinct(%QueryExpr{expr: false}, _sources), do: ""
-    defp distinct(%QueryExpr{expr: exprs}, sources) do
+    defp distinct(%QueryExpr{expr: _exprs}, _sources) do
       raise "MSSQL does not allow expressions in distinct"
     end
 
@@ -356,7 +359,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       Enum.map_join(list, ", ", &expr(&1, sources))
     end
 
-    defp expr(string, sources) when is_binary(string) do
+    defp expr(string, _sources) when is_binary(string) do
       hex = string
         |> :unicode.characters_to_binary(:utf8, {:utf16, :little})
         |> Base.encode16(case: :lower)
@@ -373,7 +376,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       uuid(binary)
     end
 
-    defp expr(%Ecto.Query.Tagged{value: other, type: type}, sources) do
+    defp expr(%Ecto.Query.Tagged{value: other}, sources) do
       expr(other, sources)
     end
 
@@ -401,7 +404,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       expr(expr, sources)
     end
 
-    defp returning([], verb),
+    defp returning([], _verb),
       do: ""
     defp returning(returning, verb) do 
       " OUTPUT " <> Enum.map_join(returning, ", ", fn(arg) -> "#{verb}.#{quote_name(arg)} " end)
@@ -444,8 +447,8 @@ if Code.ensure_loaded?(Tds.Connection) do
        WHERE i.name = '#{escape_string(to_string(name))}'
       """
     end
-
-    def execute_ddl({:create, %Table{}=table, columns}, repo) do
+    def execute_ddl(_), do: nil
+    def execute_ddl({:create, %Table{}=table, columns}, _repo) do
       unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->  
         if Keyword.get(opts, :unique) != nil, do: List.flatten([{name, type}|acc]), else: acc
       end)
@@ -455,18 +458,18 @@ if Code.ensure_loaded?(Tds.Connection) do
       if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")"
     end
 
-    def execute_ddl({:drop, %Table{name: name}}, repo) do
+    def execute_ddl({:drop, %Table{name: name}}, _repo) do
       "DROP TABLE #{quote_name(name)}"
     end
 
-    def execute_ddl({:alter, %Table{}=table, changes}, repo) do
+    def execute_ddl({:alter, %Table{}=table, changes}, _repo) do
       Enum.map_join(changes, "; ", fn(change) -> 
         "ALTER TABLE #{quote_name(table.name)} #{column_change(change)}"
       end)
     end
 
     def execute_ddl({:create, %Index{}=index}, repo) do
-      Logger.debug "Repo Config: #{inspect repo.config}"
+
       filter = 
       if (repo.config[:filter_null_on_unique_indexes] == true and index.unique) do
         " WHERE #{Enum.map_join(index.columns, " AND ", fn(column) -> "#{column} IS NOT NULL" end)}"
@@ -479,11 +482,11 @@ if Code.ensure_loaded?(Tds.Connection) do
                 filter])
     end
 
-    def execute_ddl({:drop, %Index{}=index}, repo) do
+    def execute_ddl({:drop, %Index{}=index}, _repo) do
       assemble(["DROP INDEX", quote_name(index.name), " ON ", quote_name(index.table)])
     end
 
-    def execute_ddl(default, repo) when is_binary(default), do: default
+    def execute_ddl(default, _repo) when is_binary(default), do: default
 
     defp column_definitions(columns) do
       Enum.map_join(columns, ", ", &column_definition/1)
@@ -521,10 +524,10 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp serial_expr(:serial), do: "IDENTITY"
     defp serial_expr(_), do: nil
 
-    defp unique_expr({name, type}) when type in [:string, :text] do
+    defp unique_expr({_name, type}) when type in [:string, :text] do
       raise "UNIQUE Indexes are not allowed on string types"
     end
-    defp unique_expr({name, type}) when is_atom(name) do
+    defp unique_expr({name, _type}) when is_atom(name) do
       "CONSTRAINT uc_#{name} UNIQUE (#{quote_name(name)})"
     end
     defp unique_expr(_), do: ""
@@ -553,9 +556,9 @@ if Code.ensure_loaded?(Tds.Connection) do
       "#{reference_column_type(ref.type, opts)} REFERENCES " <>
       "#{quote_name(ref.table)}(#{quote_name(ref.column)})"
     end
-    defp column_type({:array, type}, opts),
+    defp column_type({:array, _type}, _opts),
       do: raise "Array column type is not supported for MSSQL"
-    defp column_type(:uuid, opts), do: "uniqueidentifier"
+    defp column_type(:uuid, _opts), do: "uniqueidentifier"
     defp column_type(type, opts) do
       pk        = Keyword.get(opts, :primary_key)
       size      = Keyword.get(opts, :size)
