@@ -1,3 +1,7 @@
+# v0.2.1-dev
+* Bug Fixes
+  * Use datetime2 when time struct usec > 0
+
 # v0.2.0
 * Bug Fixes
   * Parsing null uuid's would break String check
