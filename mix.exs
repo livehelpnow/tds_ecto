@@ -34,7 +34,9 @@ defmodule TDS.Ecto.Mixfile do
   end
 
   defp description do
-    "TDS Adapter for Ecto."
+    """
+    MSSQL / TDS Adapter for Ecto.
+    """
   end
 
   defp package do
