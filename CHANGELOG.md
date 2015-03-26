@@ -1,4 +1,8 @@
-# v0.2.1-dev
+# v0.2.2
+* Enhancements
+  * Updated Ecto version
+
+# v0.2.1
 * Bug Fixes
   * Use datetime2 when time struct usec > 0
 
