@@ -2,8 +2,6 @@ if Code.ensure_loaded?(Tds.Connection) do
   defmodule Tds.Ecto.Connection do
     @moduledoc false
 
-    require Logger
-
     @default_port System.get_env("MSSQLPORT") || 1433
     @behaviour Ecto.Adapters.SQL.Connection
 
@@ -24,6 +22,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     def query(conn, sql, params, opts) do
       {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
+
         {value, type} = case param do
           %Ecto.Query.Tagged{value: value, type: :boolean} -> 
               value = if value == true, do: 1, else: 0
@@ -32,6 +31,7 @@ if Code.ensure_loaded?(Tds.Connection) do
             type = if value == "", do: :string, else: :binary
             {value, type}
           %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} -> 
+
             cond do
               us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
               true -> {{{y,m,d},{hh,mm,ss}}, :datetime}
