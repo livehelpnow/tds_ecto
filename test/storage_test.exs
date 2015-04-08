@@ -32,7 +32,7 @@ defmodule Tds.Ecto.StorageTest do
         # Execute the query
         case Ecto.Adapters.Mssql.Connection.query(pid, sql_command, [], []) do
           {:ok, %{}} -> {:ok, 0}
-          {_, %Tds.Error{message: message, mssql: error}} ->
+          {_, %Tds.Error{mssql: error}} ->
             {error, 1}
         end
       {_, error} -> 

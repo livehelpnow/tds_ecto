@@ -3,54 +3,8 @@ Code.require_file "../deps/ecto/integration_test/support/types.exs", __DIR__
 defmodule Tds.Ecto.TdsTest do
   use ExUnit.Case, async: true
   use Ecto.Migration
-
-  import Ecto.Query
-  import Ecto
+  
   alias Tds.Ecto.Connection, as: SQL
-
-  alias Ecto.Queryable
-  alias Ecto.Query.Planner
-
-  defmodule Model do
-    use Ecto.Model
-
-    schema "model" do
-      field :x, :integer
-      field :y, :integer
-
-      has_many :comments, Ecto.Adapters.PostgresTest.Model2,
-        references: :x,
-        foreign_key: :z
-      has_one :permalink, Ecto.Adapters.PostgresTest.Model3,
-        references: :y,
-        foreign_key: :id
-    end
-  end
-
-  defmodule Model2 do
-    use Ecto.Model
-
-    schema "model2" do
-      belongs_to :post, Ecto.Adapters.PostgresTest.Model,
-        references: :x,
-        foreign_key: :z
-    end
-  end
-
-  defmodule Model3 do
-    use Ecto.Model
-
-    schema "model3" do
-      field :list1, {:array, :string}
-      field :list2, {:array, :integer}
-      field :binary, :binary
-    end
-  end
-
-  defp normalize(query) do
-    {query, _params} = Planner.prepare(query, %{})
-    Planner.normalize(query, %{}, [])
-  end
 
   test "create table with column options" do
     create = {:create, table(:posts),
