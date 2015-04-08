@@ -5,7 +5,6 @@ defmodule TDS.Ecto.TransactionTest do
 
   import Ecto.Query
   require Ecto.Integration.PoolRepo, as: PoolRepo
-  require Ecto.Integration.TestRepo, as: TestRepo
 
   defmodule UniqueError do
     defexception [:message]

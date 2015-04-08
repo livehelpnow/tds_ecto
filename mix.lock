@@ -2,5 +2,5 @@
   "ecto": {:git, "git://github.com/elixir-lang/ecto.git", "930f2185566abce8ac6528beccee2f35687a48f4", []},
   "poolboy": {:hex, :poolboy, "1.4.2"},
   "postgrex": {:hex, :postgrex, "0.7.0"},
-  "tds": {:git, "git://github.com/livehelpnow/tds.git", "72f9982e840319d572f171923c2a3393c0c4edba", []},
+  "tds": {:git, "git://github.com/livehelpnow/tds.git", "4ee78e59fd1ff74db756b7b4f31054f5635612a8", []},
   "timex": {:hex, :timex, "0.13.4"}}
