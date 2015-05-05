@@ -4,7 +4,7 @@ defmodule TDS.Ecto.Mixfile do
   def project do
     [
       app: :tds_ecto,
-      version: "0.2.3",
+      version: "0.2.4",
       elixir: "~> 1.0",
       deps: deps(Mix.env),
       description: description,
@@ -19,19 +19,27 @@ defmodule TDS.Ecto.Mixfile do
     [applications: [:tds, :ecto]]
   end
 
-  defp deps(:prod) do
+  defp deps do
     [
-      {:ecto, "~> 0.10"},
-      {:tds, "~> 0.2"}
+      
     ]
   end
- 
-  defp deps(_) do
+
+  defp deps(:test) do
     [
       {:ecto, github: "elixir-lang/ecto"},
       {:tds, github: "livehelpnow/tds"}
-    ]
+    ] ++ deps
   end
+
+  defp deps(_) do
+    [
+      {:ecto, "~> 0.11"},
+      {:tds, "~> 0.2"}
+    ] ++ deps
+  end
+
+  
 
   defp description do
     """

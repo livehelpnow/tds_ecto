@@ -1,3 +1,7 @@
+# v0.2.4
+* Enhancements
+  * Updated Ecto to 0.11
+
 # v0.2.3
 * Bug Fixes
   * Changed tablename quoting to allow for schema
