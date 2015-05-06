@@ -62,7 +62,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp param(value) when is_binary(value) do
       value = value
         |> :unicode.characters_to_binary(:utf8, {:utf16, :little})
-      {value, :binary}
+      {value, nil}
     end
     defp param(value) when value == true, do: {1, :boolean}
     defp param(value) when value == false, do: {0, :boolean}
