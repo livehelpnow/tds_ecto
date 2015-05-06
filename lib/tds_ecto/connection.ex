@@ -54,7 +54,6 @@ if Code.ensure_loaded?(Tds.Connection) do
       end
       case Tds.Connection.query(conn, sql, params, opts) do
         {:ok, %Tds.Result{} = result} ->
-
           {:ok, Map.from_struct(result)}
         {:error, %Tds.Error{}} = err  -> err
       end
@@ -63,7 +62,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp param(value) when is_binary(value) do
       value = value
         |> :unicode.characters_to_binary(:utf8, {:utf16, :little})
-      {value, :string}
+      {value, :binary}
     end
     defp param(value) when value == true, do: {1, :boolean}
     defp param(value) when value == false, do: {0, :boolean}
