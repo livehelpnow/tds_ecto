@@ -48,11 +48,10 @@ if Code.ensure_loaded?(Tds.Connection) do
           %Ecto.Query.Tagged{value: value, type: type} -> 
             {value, type}
           value -> 
-            {param(value), nil}
+            param(value)
         end
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
       end
-
       case Tds.Connection.query(conn, sql, params, opts) do
         {:ok, %Tds.Result{} = result} ->
 
@@ -62,12 +61,13 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp param(value) when is_binary(value) do
-      value
+      value = value
         |> :unicode.characters_to_binary(:utf8, {:utf16, :little})
+      {value, :string}
     end
-    defp param(value) when value == true, do: 1
-    defp param(value) when value == false, do: 0
-    defp param(value), do: value
+    defp param(value) when value == true, do: {1, :boolean}
+    defp param(value) when value == false, do: {0, :boolean}
+    defp param(value), do: {value, nil}
     ## Transaction
 
     def begin_transaction do
