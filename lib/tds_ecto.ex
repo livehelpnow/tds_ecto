@@ -57,6 +57,8 @@ defmodule Tds.Ecto do
   use Ecto.Adapters.SQL, :tds
   @behaviour Ecto.Adapter.Storage
 
+  def id_types(_repo), do: %{binary_id: Ecto.UUID}
+
   def storage_up(opts) do
     database = Keyword.fetch!(opts, :database)
 
