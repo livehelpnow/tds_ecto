@@ -2,6 +2,10 @@
 Logger.configure(level: :info)
 ExUnit.start exclude: [:assigns_primary_key, :array_type, :case_sensitive]
 # Basic test repo
+Code.require_file "../deps/ecto/integration_test/support/repo.exs", __DIR__
+Code.require_file "../deps/ecto/integration_test/support/models.exs", __DIR__
+Code.require_file "../deps/ecto/integration_test/support/migration.exs", __DIR__
+
 alias Ecto.Integration.TestRepo
 
 Application.put_env(:ecto, TestRepo,
@@ -12,7 +16,7 @@ Application.put_env(:ecto, TestRepo,
   max_overflow: 0)
 
 defmodule Ecto.Integration.TestRepo do
-  use Ecto.Repo,
+  use Ecto.Integration.Repo,
     otp_app: :ecto
 end
 
@@ -27,7 +31,7 @@ Application.put_env(:ecto, PoolRepo,
   max_overflow: 0)
 
 defmodule Ecto.Integration.PoolRepo do
-  use Ecto.Repo,
+  use Ecto.Integration.Repo,
     otp_app: :ecto
 
     def lock_for_update, do: "WITH(UPDLOCK)"
@@ -62,20 +66,22 @@ defmodule Ecto.Integration.Case do
     #Ecto.Adapters.SQL.begin_test_transaction(TestRepo, [])
     Ecto.Adapters.SQL.restart_test_transaction(TestRepo, [])
     #on_exit fn -> Ecto.Adapters.SQL.rollback_test_transaction(TestRepo, []) end
-    :ok 
+    :ok
   end
 end
 
 
 :erlang.system_flag :backtrace_depth, 50
 # Load support models and migration
-Code.require_file "../deps/ecto/integration_test/support/models.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/support/migration.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/cases/lock.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/cases/migration.exs", __DIR__
+
+
+Code.require_file "../deps/ecto/integration_test/sql/lock.exs", __DIR__
+Code.require_file "../deps/ecto/integration_test/sql/migration.exs", __DIR__
+Code.require_file "../deps/ecto/integration_test/sql/escape.exs", __DIR__
+Code.require_file "../deps/ecto/integration_test/sql/transaction.exs", __DIR__
 Code.require_file "../deps/ecto/integration_test/cases/repo.exs", __DIR__
+Code.require_file "../deps/ecto/integration_test/cases/type.exs", __DIR__
 Code.require_file "../deps/ecto/integration_test/cases/preload.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/cases/sql_escape.exs", __DIR__
 
 
 # Load up the repository, start it, and run migrations
