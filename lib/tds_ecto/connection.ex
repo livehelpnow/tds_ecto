@@ -3,10 +3,11 @@ if Code.ensure_loaded?(Tds.Connection) do
     @moduledoc false
 
     @default_port System.get_env("MSSQLPORT") || 1433
-    @behaviour Ecto.Adapters.SQL.Connection
+    @behaviour Ecto.Adapters.Worker
+    @behaviour Ecto.Adapters.SQL.Query
 
     def connect(opts) do
-      opts = opts 
+      opts = opts
         |> Keyword.put_new(:port, @default_port)
       Tds.Connection.start_link(opts)
     end
@@ -24,13 +25,13 @@ if Code.ensure_loaded?(Tds.Connection) do
       {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
 
         {value, type} = case param do
-          %Ecto.Query.Tagged{value: value, type: :boolean} -> 
+          %Ecto.Query.Tagged{value: value, type: :boolean} ->
               value = if value == true, do: 1, else: 0
               {value, :boolean}
-          %Ecto.Query.Tagged{value: value, type: :binary} -> 
+          %Ecto.Query.Tagged{value: value, type: :binary} ->
             type = if value == "", do: :string, else: :binary
             {value, type}
-          %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} -> 
+          %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} ->
 
             cond do
               us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
@@ -39,15 +40,15 @@ if Code.ensure_loaded?(Tds.Connection) do
           %Ecto.Query.Tagged{value: value, type: :uuid} ->
             cond do
               value == nil -> {nil, :binary}
-              String.contains?(value, "-") -> 
+              String.contains?(value, "-") ->
                 {:ok, value} = Ecto.UUID.cast(value)
                 {value, :string}
-              true -> 
+              true ->
                 {uuid(value), :binary}
             end
-          %Ecto.Query.Tagged{value: value, type: type} -> 
+          %Ecto.Query.Tagged{value: value, type: type} ->
             {value, type}
-          value -> 
+          value ->
             param(value)
         end
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
@@ -106,10 +107,10 @@ if Code.ensure_loaded?(Tds.Connection) do
       group_by = group_by(query.group_bys, sources)
       having   = having(query.havings, sources)
       order_by = order_by(query.order_bys, sources)
-      
+
       offset   = offset(query.offset, sources)
       # lock     = lock(query.lock)
-      
+
       # unlock   = unlock(query.lock)
 
       assemble([select, from, join, where, group_by, having, order_by, offset])
@@ -125,11 +126,11 @@ if Code.ensure_loaded?(Tds.Connection) do
 
       where = where(query.wheres, sources)
       where = if where, do: " " <> where, else: ""
-      # fields = Enum.map(values, fn {field, value} -> 
+      # fields = Enum.map(values, fn {field, value} ->
       #   field
       # end)
       "UPDATE #{name} " <>
-        "SET " <> zipped_sql <> " FROM #{quote_table_name(table)} AS #{name} " <> 
+        "SET " <> zipped_sql <> " FROM #{quote_table_name(table)} AS #{name} " <>
         where
     end
 
@@ -172,7 +173,7 @@ if Code.ensure_loaded?(Tds.Connection) do
         {"#{quote_name(field)} = @#{acc}", acc + 1}
       end
 
-      "DELETE FROM #{quote_table_name(table)}" <> 
+      "DELETE FROM #{quote_table_name(table)}" <>
       returning(returning,"DELETED") <> " WHERE " <> Enum.join(filters, " AND ")
     end
 
@@ -193,7 +194,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp select(%SelectExpr{fields: fields}, limit, [], sources) do
       #IO.inspect limit
-      "SELECT " <> limit(limit, sources) <> Enum.map_join(fields, ", ", &expr(&1, sources)) 
+      "SELECT " <> limit(limit, sources) <> Enum.map_join(fields, ", ", &expr(&1, sources))
     end
 
     defp select(%SelectExpr{fields: fields}, limit, distinct, sources) do
@@ -336,8 +337,8 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp expr({:fragment, _, parts}, sources) do
       Enum.map_join(parts, "", fn
-        part when is_binary(part) -> part
-        expr -> expr(expr, sources)
+        {:raw, part}  -> part
+        {:expr, expr} -> expr(expr, sources)
       end)
     end
 
@@ -405,7 +406,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp returning([], _verb),
       do: ""
-    defp returning(returning, verb) do 
+    defp returning(returning, verb) do
       " OUTPUT " <> Enum.map_join(returning, ", ", fn(arg) -> "#{verb}.#{quote_name(arg)} " end)
     end
 
@@ -448,7 +449,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
     def execute_ddl(_), do: nil
     def execute_ddl({:create, %Table{}=table, columns}, _repo) do
-      unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->  
+      unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->
         if Keyword.get(opts, :unique) != nil, do: List.flatten([{name, type}|acc]), else: acc
       end)
       unique_constraints = unique_columns
@@ -462,17 +463,17 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     def execute_ddl({:alter, %Table{}=table, changes}, _repo) do
-      Enum.map_join(changes, "; ", fn(change) -> 
+      Enum.map_join(changes, "; ", fn(change) ->
         "ALTER TABLE #{quote_table_name(table.name)} #{column_change(change)}"
       end)
     end
 
     def execute_ddl({:create, %Index{}=index}, repo) do
 
-      filter = 
+      filter =
       if (repo.config[:filter_null_on_unique_indexes] == true and index.unique) do
         " WHERE #{Enum.map_join(index.columns, " AND ", fn(column) -> "#{column} IS NOT NULL" end)}"
-      else 
+      else
         ""
       end
       assemble(["CREATE#{if index.unique, do: " UNIQUE"} INDEX",
@@ -611,20 +612,20 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp uuid(binary) do
       <<
        p1::binary-size(1),
-       p2::binary-size(1), 
-       p3::binary-size(1), 
-       p4::binary-size(1), 
-       p5::binary-size(1), 
-       p6::binary-size(1), 
-       p7::binary-size(1), 
-       p8::binary-size(1), 
-       p9::binary-size(1), 
-       p10::binary-size(1), 
-       p11::binary-size(1), 
-       p12::binary-size(1), 
-       p13::binary-size(1), 
-       p14::binary-size(1), 
-       p15::binary-size(1), 
+       p2::binary-size(1),
+       p3::binary-size(1),
+       p4::binary-size(1),
+       p5::binary-size(1),
+       p6::binary-size(1),
+       p7::binary-size(1),
+       p8::binary-size(1),
+       p9::binary-size(1),
+       p10::binary-size(1),
+       p11::binary-size(1),
+       p12::binary-size(1),
+       p13::binary-size(1),
+       p14::binary-size(1),
+       p15::binary-size(1),
        p16::binary-size(1)>> = binary
 
        p4 <> p3 <> p2 <>p1 <> p6 <> p5 <> p8 <> p7 <> p9 <> p10 <> p11 <> p12 <> p13 <> p14 <> p15 <> p16
