@@ -21,25 +21,25 @@ defmodule TDS.Ecto.Mixfile do
 
   defp deps do
     [
-      
+
     ]
   end
 
   defp deps(:test) do
     [
-      {:ecto, github: "elixir-lang/ecto"},
+      {:ecto, "~> 0.12.0-rc"},
       {:tds, github: "livehelpnow/tds"}
     ] ++ deps
   end
 
   defp deps(_) do
     [
-      {:ecto, "~> 0.11"},
+      {:ecto, "~> 0.12.0-rc"},
       {:tds, "~> 0.2"}
     ] ++ deps
   end
 
-  
+
 
   defp description do
     """
