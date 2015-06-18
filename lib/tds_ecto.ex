@@ -1,5 +1,5 @@
 defmodule Tds.Ecto do
-  
+
   @moduledoc """
   Adapter module for MSSQL.
 
@@ -57,7 +57,7 @@ defmodule Tds.Ecto do
   use Ecto.Adapters.SQL, :tds
   @behaviour Ecto.Adapter.Storage
 
-  def id_types(_repo), do: %{binary_id: Ecto.UUID}
+  #def id_types(_repo), do: %{binary_id: Ecto.UUID}
 
   def storage_up(opts) do
     database = Keyword.fetch!(opts, :database)
@@ -97,7 +97,7 @@ defmodule Tds.Ecto do
 
   defp run_with_sql_conn(opts, sql_command) do
     host = opts[:hostname] || System.get_env("MSSQLHOST") || "localhost"
-    opts = opts 
+    opts = opts
       |> Keyword.put(:database, "master")
       |> Keyword.put(:hostname, host)
     case Tds.Ecto.Connection.connect(opts) do
@@ -108,7 +108,7 @@ defmodule Tds.Ecto do
           {_, %Tds.Error{message: _message, mssql: error}} ->
             {error, 1}
         end
-      {_,error} -> 
+      {_,error} ->
         {error, 1}
     end
   end
