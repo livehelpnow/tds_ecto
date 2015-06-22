@@ -27,8 +27,8 @@ defmodule TDS.Ecto.Mixfile do
 
   defp deps(:test) do
     [
-      {:ecto, "~> 0.12.0-rc"},
-      {:tds, github: "livehelpnow/tds"}
+      {:ecto, "~> 0.12.0"},
+      {:tds, path: "../tds"}
     ] ++ deps
   end
 
