@@ -1,6 +1,10 @@
 #System.at_exit fn _ -> Logger.flush end
-Logger.configure(level: :info)
-ExUnit.start exclude: [:assigns_primary_key, :array_type, :case_sensitive]
+Logger.configure(level: :error)
+ExUnit.start exclude: [:assigns_id_type, :array_type, :case_sensitive]
+
+Application.put_env(:ecto, :lock_for_update, "FOR UPDATE")
+Application.put_env(:ecto, :primary_key_type, :id)
+
 # Basic test repo
 Code.require_file "../deps/ecto/integration_test/support/repo.exs", __DIR__
 Code.require_file "../deps/ecto/integration_test/support/models.exs", __DIR__

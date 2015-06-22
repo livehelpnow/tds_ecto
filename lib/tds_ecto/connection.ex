@@ -604,6 +604,8 @@ if Code.ensure_loaded?(Tds.Connection) do
       :binary.replace(value, "'", "''", [:global])
     end
 
+    defp ecto_to_db(:id),         do: "integer"
+    defp ecto_to_db(:binary_id),  do: "uniqueidentifier"
     defp ecto_to_db(:string),     do: "nvarchar"
     defp ecto_to_db(:binary),     do: "varbinary"
     defp ecto_to_db(:boolean),    do: "bit"
