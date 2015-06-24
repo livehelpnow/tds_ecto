@@ -63,9 +63,10 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp param(value) when is_binary(value) do
-      value = value
-        |> :unicode.characters_to_binary(:utf8, {:utf16, :little})
-      {value, nil}
+      case :unicode.characters_to_binary(value, :utf8, {:utf16, :little}) do
+        {:error, _, _} -> {value, :binary}
+        val -> {val, nil}
+      end
     end
     defp param(value) when value == true, do: {1, :boolean}
     defp param(value) when value == false, do: {0, :boolean}
@@ -566,6 +567,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp column_type({:array, _type}, _opts),
       do: raise "Array column type is not supported for MSSQL"
     defp column_type(:uuid, _opts), do: "uniqueidentifier"
+    defp column_type(:binary_id, _opts), do: "uniqueidentifier"
     defp column_type(type, opts) do
       pk        = Keyword.get(opts, :primary_key)
       size      = Keyword.get(opts, :size)
