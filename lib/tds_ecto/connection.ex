@@ -129,33 +129,34 @@ if Code.ensure_loaded?(Tds.Connection) do
       {table, name, _model} = elem(sources, 0)
 
       zipped_sql = Enum.map_join(values, ", ", fn {field, expr} ->
-        "#{quote_name(field)} = #{expr(expr, sources)}"
+        "#{name}.#{quote_name(field)} = #{expr(expr, sources)}"
       end)
 
-      where = where(query.wheres, sources)
-      where = if where, do: " " <> where, else: ""
-      # fields = Enum.map(values, fn {field, value} ->
-      #   field
-      # end)
-      "UPDATE #{name} " <>
-        "SET " <> zipped_sql <> " FROM #{quote_table_name(table)} AS #{name} " <>
-        where
+      update = "UPDATE #{name}"
+      from   = "FROM #{quote_table_name(table)} AS #{name}"
+      join   = join(query.joins, sources, query.lock)
+      where  = where(query.wheres, sources)
+
+      assemble([update, "SET", zipped_sql, from, join, where])
     end
 
     def delete_all(query) do
       sources = create_names(query)
       {table, name, _model} = elem(sources, 0)
 
-      where = where(query.wheres, sources)
-      where = if where, do: " " <> where, else: ""
-      "DELETE #{name} FROM #{quote_table_name(table)} AS #{name}" <> where
+      delete = "DELETE #{name}"
+      from   = "FROM #{quote_table_name(table)} AS #{name}"
+      join   = join(query.joins, sources, query.lock)
+      where  = where(query.wheres, sources)
+
+      assemble([delete, from, join, where])
     end
 
     def insert(table, fields, returning) do
       values =
         if fields == [] do
           returning(returning, "INSERTED") <>
-          " DEFAULT VALUES"
+          "DEFAULT VALUES"
         else
           "(" <> Enum.map_join(fields, ", ", &quote_name/1) <> ") " <>
           returning(returning, "INSERTED") <>
@@ -216,12 +217,12 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp distinct(%QueryExpr{expr: true}, _sources),  do: "DISTINCT "
     defp distinct(%QueryExpr{expr: false}, _sources), do: ""
     defp distinct(%QueryExpr{expr: _exprs}, _sources) do
-      raise "MSSQL does not allow expressions in distinct"
+      raise ArgumentError, "MSSQL does not allow expressions in distinct"
     end
 
     defp from(sources, lock) do
       {table, name, _model} = elem(sources, 0)
-      "FROM #{quote_table_name(table)} AS #{name} " <> lock(lock)
+      "FROM #{quote_table_name(table)} AS #{name}" <> lock(lock) |> String.strip
     end
 
     defp join([], _sources, _lock), do: nil
@@ -233,7 +234,7 @@ if Code.ensure_loaded?(Tds.Connection) do
           on   = expr(expr, sources)
           qual = join_qual(qual)
 
-          "#{qual} JOIN #{quote_table_name(table)} AS #{name} " <> lock(lock) <> " ON " <> on
+          "#{qual} JOIN #{quote_table_name(table)} AS #{name} " <> lock(lock) <> "ON " <> on
       end)
     end
 
@@ -295,7 +296,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp lock(nil), do: ""
-    defp lock(lock_clause), do: lock_clause
+    defp lock(lock_clause), do: " #{lock_clause} "
 
     defp boolean(_name, [], _sources), do: nil
     defp boolean(name, query_exprs, sources) do
@@ -341,6 +342,10 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp expr({:not, _, [expr]}, sources) do
       "NOT (" <> expr(expr, sources) <> ")"
+    end
+
+    defp expr({:fragment, _, [kw]}, _sources) when is_list(kw) or tuple_size(kw) == 3 do
+      raise ArgumentError, "MSSQL adapter does not support keyword or interpolated fragments"
     end
 
     defp expr({:fragment, _, parts}, sources) do
@@ -455,7 +460,7 @@ if Code.ensure_loaded?(Tds.Connection) do
        WHERE i.name = '#{escape_string(to_string(name))}'
       """
     end
-    def execute_ddl(_), do: nil
+    def execute_ddl(_, _ \\ nil)
     def execute_ddl({:create, %Table{}=table, columns}, _repo) do
       unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->
         if Keyword.get(opts, :unique) != nil, do: List.flatten([{name, type}|acc]), else: acc
@@ -494,7 +499,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       assemble(["DROP INDEX", quote_table_name(index.name), " ON ", quote_table_name(index.table)])
     end
 
-    def execute_ddl(default, _repo) when is_binary(default), do: default
+    def execute_ddl(default, _repo \\ nil) when is_binary(default), do: default
 
     defp column_definitions(columns) do
       Enum.map_join(columns, ", ", &column_definition/1)
@@ -513,7 +518,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp column_change({:modify, name, type, opts}) do
-      assemble(["ALTER COLUMN", quote_name(name), column_type(type, opts)])
+      assemble(["ALTER COLUMN", quote_name(name), column_type(type, opts), column_options(opts)])
     end
 
     defp column_change({:remove, name}), do: "DROP COLUMN #{quote_name(name)}"
@@ -561,7 +566,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       do: literal
 
     defp column_type(%Reference{} = ref, opts) do
-      "#{reference_column_type(ref.type, opts)} REFERENCES " <>
+      "#{reference_column_type(ref.type, opts)} FOREIGN KEY REFERENCES " <>
       "#{quote_name(ref.table)}(#{quote_name(ref.column)})"
     end
     defp column_type({:array, _type}, _opts),
