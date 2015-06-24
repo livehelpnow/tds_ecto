@@ -40,7 +40,7 @@ if Code.ensure_loaded?(Tds.Connection) do
           %Ecto.Query.Tagged{value: value, type: :uuid} ->
             cond do
               value == nil -> {nil, :binary}
-              String.contains?(value, "-") ->
+              String.length(value) > 16 ->
                 {:ok, value} = Ecto.UUID.cast(value)
                 {value, :string}
               true ->
