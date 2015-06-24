@@ -48,6 +48,8 @@ if Code.ensure_loaded?(Tds.Connection) do
             end
           %Ecto.Query.Tagged{value: value, type: type} ->
             {value, type}
+          %{__struct__: _} = value -> {value, nil}
+          %{} = value -> {json_library.encode!(value), nil}
           value ->
             param(value)
         end
@@ -68,6 +70,11 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp param(value) when value == true, do: {1, :boolean}
     defp param(value) when value == false, do: {0, :boolean}
     defp param(value), do: {value, nil}
+
+    defp json_library do
+      Application.get_env(:ecto, :json_library)
+    end
+
     ## Transaction
 
     def begin_transaction do
@@ -608,6 +615,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp ecto_to_db(:binary_id),  do: "uniqueidentifier"
     defp ecto_to_db(:string),     do: "nvarchar"
     defp ecto_to_db(:binary),     do: "varbinary"
+    defp ecto_to_db(:map),        do: "text"
     defp ecto_to_db(:boolean),    do: "bit"
     defp ecto_to_db(other),       do: Atom.to_string(other)
 
