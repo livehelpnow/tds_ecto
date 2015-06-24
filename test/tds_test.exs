@@ -170,10 +170,10 @@ defmodule Tds.Ecto.TdsTest do
     query = Model |> select([r], fragment("lower(?)", ^value)) |> normalize
     assert SQL.all(query) == ~s{SELECT lower(@1) FROM [model] AS m0}
 
-    # query = Model |> select([], fragment(title: 2)) |> normalize
-    # assert_raise ArgumentError, fn ->
-    #   SQL.all(query)
-    # end
+    query = Model |> select([], fragment(title: 2)) |> normalize
+    assert_raise ArgumentError, fn ->
+      SQL.all(query)
+    end
   end
 
   test "literals" do
