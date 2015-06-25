@@ -1,6 +1,8 @@
-# v0.3.0-dev
+# v0.2.5
 * Enhancements
-  * Updated Ecto to 0.12
+  * Updated Ecto to 0.12.1
+  * Added support for map type
+  * Added support for binary_id
 
 # v0.2.4
 * Enhancements
