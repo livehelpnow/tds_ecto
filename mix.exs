@@ -21,7 +21,7 @@ defmodule TDS.Ecto.Mixfile do
 
   defp deps do
     [
-
+      {:poison, only: :test}
     ]
   end
 
