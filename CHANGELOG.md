@@ -1,3 +1,5 @@
+# v0.2.6-dev
+
 # v0.2.5
 * Enhancements
   * Updated Ecto to 0.12.1
