@@ -48,8 +48,8 @@ if Code.ensure_loaded?(Tds.Connection) do
             end
           %Ecto.Query.Tagged{value: value, type: type} ->
             {value, type}
-          %{__struct__: _} = value -> {value, nil}
-          %{} = value -> {json_library.encode!(value), nil}
+          %{__struct__: _} = value -> {value, :string}
+          %{} = value -> {json_library.encode!(value), :string}
           value ->
             param(value)
         end
