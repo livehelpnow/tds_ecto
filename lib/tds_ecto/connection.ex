@@ -393,8 +393,8 @@ if Code.ensure_loaded?(Tds.Connection) do
       uuid(binary)
     end
 
-    defp expr(%Ecto.Query.Tagged{value: other}, sources) do
-      expr(other, sources)
+    defp expr(%Ecto.Query.Tagged{value: other, type: type}, sources) do
+      "CAST(#{expr(other, sources)} AS #{ecto_to_db(type)})"
     end
 
     defp expr(nil, _sources),   do: "NULL"
