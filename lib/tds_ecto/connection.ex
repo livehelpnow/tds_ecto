@@ -503,7 +503,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       assemble(["DROP INDEX", quote_table_name(index.name), " ON ", quote_table_name(index.table)])
     end
 
-    def execute_ddl(default, _repo \\ nil) when is_binary(default), do: default
+    def execute_ddl(default, _repo) when is_binary(default), do: default
 
     defp column_definitions(columns) do
       Enum.map_join(columns, ", ", &column_definition/1)
