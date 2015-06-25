@@ -394,7 +394,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr(%Ecto.Query.Tagged{value: other, type: type}, sources) do
-      "CAST(#{expr(other, sources)} AS #{ecto_to_db(type)})"
+      "CAST(#{expr(other, sources)} AS #{column_type(type, [])})"
     end
 
     defp expr(nil, _sources),   do: "NULL"
