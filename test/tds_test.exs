@@ -234,6 +234,9 @@ defmodule Tds.Ecto.TdsTest do
 
     query = Model |> having([p], p.x == p.x) |> having([p], p.y == p.y) |> select([p], [p.y, p.x]) |> normalize
     assert SQL.all(query) == ~s{SELECT m0.[y], m0.[x] FROM [model] AS m0 HAVING (m0.[x] = m0.[x]) AND (m0.[y] = m0.[y])}
+
+    query = Model |> select([e], 1 in fragment("foo")) |> normalize
+    assert SQL.all(query) == ~s{SELECT 1 IN (foo) FROM [model] AS m0}
   end
 
   test "group by" do
