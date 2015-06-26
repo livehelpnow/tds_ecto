@@ -118,9 +118,8 @@ if Code.ensure_loaded?(Tds.Connection) do
 
       offset   = offset(query.offset, sources)
       # lock     = lock(query.lock)
-
       # unlock   = unlock(query.lock)
-
+      if (query.offset != nil and query.order_bys == []), do: raise(ArgumentError, "ORDER BY is mandatory to use OFFSET")
       assemble([select, from, join, where, group_by, having, order_by, offset])
     end
 
@@ -292,7 +291,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp offset(nil, _sources), do: nil
     defp offset(%Ecto.Query.QueryExpr{expr: expr}, sources) do
-      "OFFSET " <> expr(expr, sources)
+      "OFFSET " <> expr(expr, sources) <> " ROW"
     end
 
     defp lock(nil), do: ""

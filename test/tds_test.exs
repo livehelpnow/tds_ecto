@@ -112,11 +112,16 @@ defmodule Tds.Ecto.TdsTest do
     query = Model |> limit([r], 3) |> select([], 0) |> normalize
     assert SQL.all(query) == ~s{SELECT TOP(3) 0 FROM [model] AS m0}
 
-    query = Model |> offset([r], 5) |> select([], 0) |> normalize
-    assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0 OFFSET 5}
+    query = Model |> order_by([r], r.x) |> offset([r], 5) |> select([], 0) |> normalize
+    assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0 ORDER BY m0.[x] OFFSET 5 ROW}
+
+    query = Model |> order_by([r], r.x) |> offset([r], 5) |> limit([r], 3) |> select([], 0) |> normalize
+    assert SQL.all(query) == ~s{SELECT TOP(3) 0 FROM [model] AS m0 ORDER BY m0.[x] OFFSET 5 ROW}
 
     query = Model |> offset([r], 5) |> limit([r], 3) |> select([], 0) |> normalize
-    assert SQL.all(query) == ~s{SELECT TOP(3) 0 FROM [model] AS m0 OFFSET 5}
+    assert_raise ArgumentError, fn ->
+      SQL.all(query)
+    end
   end
 
   test "lock" do
@@ -267,7 +272,7 @@ defmodule Tds.Ecto.TdsTest do
       "SELECT TOP(@11) @1 FROM [model] AS m0 INNER JOIN [model2] AS m1 ON @2 " <>
       "INNER JOIN [model2] AS m2 ON @3 WHERE (@4) AND (@5) " <>
       "GROUP BY @6, @7 HAVING (@8) AND (@9) " <>
-      "ORDER BY @10, m0.[x] OFFSET @12"
+      "ORDER BY @10, m0.[x] OFFSET @12 ROW"
 
     assert SQL.all(query) == String.rstrip(result)
   end
