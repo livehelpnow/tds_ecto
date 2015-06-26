@@ -632,30 +632,13 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp ecto_to_db(:binary_id),  do: "uniqueidentifier"
     defp ecto_to_db(:string),     do: "nvarchar"
     defp ecto_to_db(:binary),     do: "varbinary"
+    defp ecto_to_db(:datetime),   do: "datetime2"
     defp ecto_to_db(:map),        do: "nvarchar"
     defp ecto_to_db(:boolean),    do: "bit"
     defp ecto_to_db(other),       do: Atom.to_string(other)
 
-    defp uuid(binary) do
-      <<
-       p1::binary-size(1),
-       p2::binary-size(1),
-       p3::binary-size(1),
-       p4::binary-size(1),
-       p5::binary-size(1),
-       p6::binary-size(1),
-       p7::binary-size(1),
-       p8::binary-size(1),
-       p9::binary-size(1),
-       p10::binary-size(1),
-       p11::binary-size(1),
-       p12::binary-size(1),
-       p13::binary-size(1),
-       p14::binary-size(1),
-       p15::binary-size(1),
-       p16::binary-size(1)>> = binary
-
-       p4 <> p3 <> p2 <>p1 <> p6 <> p5 <> p8 <> p7 <> p9 <> p10 <> p11 <> p12 <> p13 <> p14 <> p15 <> p16
+    def uuid(<<v1::32, v2::16, v3::16, v4::64>>) do
+      <<v1::little-signed-32, v2::little-signed-16, v3::little-signed-16, v4::signed-64>>
     end
   end
 end

@@ -411,7 +411,7 @@ defmodule Tds.Ecto.TdsTest do
                 {:add, :title, :string, []},
                 {:add, :created_at, :datetime, []}]}
     assert SQL.execute_ddl(create) ==
-           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [title] nvarchar(255) NULL, [created_at] datetime NULL)|
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [title] nvarchar(255) NULL, [created_at] datetime2 NULL)|
   end
 
   test "create table with reference" do
