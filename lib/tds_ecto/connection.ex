@@ -342,7 +342,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr({:in, _, [left, right]}, sources) do
-      expr(left, sources) <> " = ANY(" <> expr(right, sources) <> ")"
+      expr(left, sources) <> " IN (" <> expr(right, sources) <> ")"
     end
 
     defp expr({:is_nil, _, [arg]}, sources) do
