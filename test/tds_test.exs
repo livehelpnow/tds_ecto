@@ -461,6 +461,14 @@ defmodule Tds.Ecto.TdsTest do
     """ |> String.strip |> String.replace("\n", " ")
   end
 
+  test "create table with options" do
+    create = {:create, table(:posts, [options: "WITH FOO=BAR"]),
+               [{:add, :id, :serial, [primary_key: true]},
+                {:add, :created_at, :datetime, []}]}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [created_at] datetime2 NULL) WITH FOO=BAR|
+  end
+
   # test "create index" do
   #   create = {:create, index(:posts, [:category_id, :permalink])}
   #   assert SQL.execute_ddl(create) ==

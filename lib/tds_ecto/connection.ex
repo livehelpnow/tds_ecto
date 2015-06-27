@@ -471,13 +471,15 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
     def execute_ddl(_, _ \\ nil)
     def execute_ddl({:create, %Table{}=table, columns}, _repo) do
+      options = options_expr(table.options)
       unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->
         if Keyword.get(opts, :unique) != nil, do: List.flatten([{name, type}|acc]), else: acc
       end)
       unique_constraints = unique_columns
         |> Enum.map_join(", ", &unique_expr/1)
       "CREATE TABLE #{quote_table_name(table.name)} (#{column_definitions(columns)}" <>
-      if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")"
+      if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")" <>
+      options
     end
 
     def execute_ddl({:drop, %Table{name: name}}, _repo) do
@@ -573,6 +575,11 @@ if Code.ensure_loaded?(Tds.Connection) do
       do: literal
     defp index_expr(literal),
       do: literal
+
+    defp options_expr(nil),
+      do: ""
+    defp options_expr(options),
+      do: " #{options}"
 
     defp column_type(%Reference{} = ref, opts) do
       "#{reference_column_type(ref.type, opts)} FOREIGN KEY REFERENCES " <>
