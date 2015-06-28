@@ -583,8 +583,10 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp column_type(%Reference{} = ref, opts) do
       "#{reference_column_type(ref.type, opts)} FOREIGN KEY REFERENCES " <>
-      "#{quote_name(ref.table)}(#{quote_name(ref.column)})"
+      "#{quote_name(ref.table)}(#{quote_name(ref.column)})" <>
+      reference_on_delete(ref.on_delete)
     end
+
     defp column_type({:array, _type}, _opts),
       do: raise "Array column type is not supported for MSSQL"
     defp column_type(:uuid, _opts), do: "uniqueidentifier"
@@ -613,6 +615,10 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp reference_column_type(:serial, _opts), do: "bigint"
     defp reference_column_type(type, opts), do: column_type(type, opts)
+
+    defp reference_on_delete(:nilify_all), do: " ON DELETE SET NULL"
+    defp reference_on_delete(:delete_all), do: " ON DELETE CASCADE"
+    defp reference_on_delete(_), do: ""
 
     ## Helpers
 
