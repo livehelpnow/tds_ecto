@@ -124,20 +124,17 @@ if Code.ensure_loaded?(Tds.Connection) do
       assemble([select, from, join, where, group_by, having, order_by, offset])
     end
 
-    def update_all(query, values) do
+    def update_all(query) do
       sources = create_names(query)
       {table, name, _model} = elem(sources, 0)
 
-      zipped_sql = Enum.map_join(values, ", ", fn {field, expr} ->
-        "#{name}.#{quote_name(field)} = #{expr(expr, sources)}"
-      end)
-
       update = "UPDATE #{name}"
+      fields = update_fields(query.updates, sources)
       from   = "FROM #{quote_table_name(table)} AS #{name}"
       join   = join(query.joins, sources, query.lock)
       where  = where(query.wheres, sources)
 
-      assemble([update, "SET", zipped_sql, from, join, where])
+      assemble([update, "SET", fields, from, join, where])
     end
 
     def delete_all(query) do
@@ -223,6 +220,28 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp from(sources, lock) do
       {table, name, _model} = elem(sources, 0)
       "FROM #{quote_table_name(table)} AS #{name}" <> lock(lock) |> String.strip
+    end
+
+    defp update_fields(updates, sources) do
+      for(%{expr: expr} <- updates,
+          {op, kw} <- expr,
+          {key, value} <- kw,
+          do: update_op(op, key, value, sources)) |> Enum.join(", ")
+    end
+
+    defp update_op(:set, key, value, sources) do
+      {_table, name, _model} = elem(sources, 0)
+      name <> "." <> quote_name(key) <> " = " <> expr(value, sources)
+    end
+
+    defp update_op(:inc, key, value, sources) do
+      {_table, name, _model} = elem(sources, 0)
+      quoted = quote_name(key)
+      name <> "." <> quoted <> " = " <> name <> "." <> quoted <> " + " <> expr(value, sources)
+    end
+
+    defp update_op(command, _key, _value, _sources) do
+      raise ArgumentError, "Unknown update operation #{inspect command} for MSSQL"
     end
 
     defp join([], _sources, _lock), do: nil
