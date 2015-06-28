@@ -402,7 +402,7 @@ defmodule Tds.Ecto.TdsTest do
 
   # DDL
 
-  import Ecto.Migration, only: [table: 1, table: 2, index: 2, index: 3, references: 1]
+  import Ecto.Migration, only: [table: 1, table: 2, index: 2, index: 3, references: 1, references: 2]
 
   test "executing a string during migration" do
     assert SQL.execute_ddl("example") == "example"
@@ -424,6 +424,29 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.execute_ddl(create) ==
            ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) NULL)|
   end
+
+  test "create table with reference and on_delete: :nothing clause" do
+    create = {:create, table(:posts),
+               [{:add, :id, :serial, [primary_key: true]},
+                {:add, :category_id, references(:categories, on_delete: :nothing), []} ]}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) NULL)|
+  end
+
+  test "create table with reference and on_delete: :nilify_all clause" do
+    create = {:create, table(:posts),
+               [{:add, :id, :serial, [primary_key: true]},
+                {:add, :category_id, references(:categories, on_delete: :nilify_all), []} ]}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) ON DELETE SET NULL NULL)|
+  end
+
+  test "create table with reference and on_delete: :delete_all clause" do
+    create = {:create, table(:posts),
+               [{:add, :id, :serial, [primary_key: true]},
+                {:add, :category_id, references(:categories, on_delete: :delete_all), []} ]}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) ON DELETE CASCADE NULL)|  end
 
   test "create table with column options" do
     create = {:create, table(:posts),
