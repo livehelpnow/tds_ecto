@@ -3,7 +3,8 @@ if Code.ensure_loaded?(Tds.Connection) do
     @moduledoc false
 
     @default_port System.get_env("MSSQLPORT") || 1433
-    @behaviour Ecto.Adapters.Worker
+
+    @behaviour Ecto.Adapters.Connection
     @behaviour Ecto.Adapters.SQL.Query
 
     def connect(opts) do

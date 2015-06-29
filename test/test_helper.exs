@@ -15,8 +15,7 @@ Application.put_env(:ecto, TestRepo,
   adapter: Tds.Ecto,
   filter_null_on_unique_indexes: true,
   url: "ecto://mssql:mssql@mssql.local/ecto_test",
-  size: 1,
-  max_overflow: 0)
+  pool: Ecto.Adapters.SQL.Sandbox)
 
 defmodule Ecto.Integration.TestRepo do
   use Ecto.Integration.Repo,
@@ -30,8 +29,7 @@ Application.put_env(:ecto, PoolRepo,
   adapter: Tds.Ecto,
   filter_null_on_unique_indexes: true,
   url: "ecto://mssql:mssql@mssql.local/ecto_test",
-  size: 10,
-  max_overflow: 0)
+  size: 10)
 
 defmodule Ecto.Integration.PoolRepo do
   use Ecto.Integration.Repo,
