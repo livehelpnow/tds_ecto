@@ -1,4 +1,7 @@
-# v0.2.6-dev
+# v0.3.0
+* Enhancements
+  * Updated to ecto 0.13.0
+
 
 # v0.2.5
 * Enhancements
