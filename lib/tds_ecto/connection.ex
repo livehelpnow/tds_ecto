@@ -3,7 +3,8 @@ if Code.ensure_loaded?(Tds.Connection) do
     @moduledoc false
 
     @default_port System.get_env("MSSQLPORT") || 1433
-    @behaviour Ecto.Adapters.Worker
+
+    @behaviour Ecto.Adapters.Connection
     @behaviour Ecto.Adapters.SQL.Query
 
     def connect(opts) do
@@ -123,20 +124,17 @@ if Code.ensure_loaded?(Tds.Connection) do
       assemble([select, from, join, where, group_by, having, order_by, offset])
     end
 
-    def update_all(query, values) do
+    def update_all(query) do
       sources = create_names(query)
       {table, name, _model} = elem(sources, 0)
 
-      zipped_sql = Enum.map_join(values, ", ", fn {field, expr} ->
-        "#{name}.#{quote_name(field)} = #{expr(expr, sources)}"
-      end)
-
       update = "UPDATE #{name}"
+      fields = update_fields(query.updates, sources)
       from   = "FROM #{quote_table_name(table)} AS #{name}"
       join   = join(query.joins, sources, query.lock)
       where  = where(query.wheres, sources)
 
-      assemble([update, "SET", zipped_sql, from, join, where])
+      assemble([update, "SET", fields, from, join, where])
     end
 
     def delete_all(query) do
@@ -222,6 +220,28 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp from(sources, lock) do
       {table, name, _model} = elem(sources, 0)
       "FROM #{quote_table_name(table)} AS #{name}" <> lock(lock) |> String.strip
+    end
+
+    defp update_fields(updates, sources) do
+      for(%{expr: expr} <- updates,
+          {op, kw} <- expr,
+          {key, value} <- kw,
+          do: update_op(op, key, value, sources)) |> Enum.join(", ")
+    end
+
+    defp update_op(:set, key, value, sources) do
+      {_table, name, _model} = elem(sources, 0)
+      name <> "." <> quote_name(key) <> " = " <> expr(value, sources)
+    end
+
+    defp update_op(:inc, key, value, sources) do
+      {_table, name, _model} = elem(sources, 0)
+      quoted = quote_name(key)
+      name <> "." <> quoted <> " = " <> name <> "." <> quoted <> " + " <> expr(value, sources)
+    end
+
+    defp update_op(command, _key, _value, _sources) do
+      raise ArgumentError, "Unknown update operation #{inspect command} for MSSQL"
     end
 
     defp join([], _sources, _lock), do: nil
@@ -316,7 +336,12 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr({:&, _, [idx]}, sources) do
-      {_table, name, model} = elem(sources, idx)
+      {table, name, model} = elem(sources, idx)
+      unless model do
+        raise ArgumentError, "MSSQL requires a model when using selector #{inspect name} but " <>
+                             "only the table #{inspect table} was given. Please specify a model " <>
+                             "or specify exactly which fields from #{inspect name} you desire"
+      end
       fields = model.__schema__(:fields)
       Enum.map_join(fields, ", ", &"#{name}.#{quote_name(&1)}")
     end
@@ -336,7 +361,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr({:in, _, [left, right]}, sources) do
-      expr(left, sources) <> " = ANY(" <> expr(right, sources) <> ")"
+      expr(left, sources) <> " IN (" <> expr(right, sources) <> ")"
     end
 
     defp expr({:is_nil, _, [arg]}, sources) do
@@ -465,13 +490,15 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
     def execute_ddl(_, _ \\ nil)
     def execute_ddl({:create, %Table{}=table, columns}, _repo) do
+      options = options_expr(table.options)
       unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->
         if Keyword.get(opts, :unique) != nil, do: List.flatten([{name, type}|acc]), else: acc
       end)
       unique_constraints = unique_columns
         |> Enum.map_join(", ", &unique_expr/1)
       "CREATE TABLE #{quote_table_name(table.name)} (#{column_definitions(columns)}" <>
-      if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")"
+      if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")" <>
+      options
     end
 
     def execute_ddl({:drop, %Table{name: name}}, _repo) do
@@ -568,10 +595,17 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp index_expr(literal),
       do: literal
 
+    defp options_expr(nil),
+      do: ""
+    defp options_expr(options),
+      do: " #{options}"
+
     defp column_type(%Reference{} = ref, opts) do
       "#{reference_column_type(ref.type, opts)} FOREIGN KEY REFERENCES " <>
-      "#{quote_name(ref.table)}(#{quote_name(ref.column)})"
+      "#{quote_name(ref.table)}(#{quote_name(ref.column)})" <>
+      reference_on_delete(ref.on_delete)
     end
+
     defp column_type({:array, _type}, _opts),
       do: raise "Array column type is not supported for MSSQL"
     defp column_type(:uuid, _opts), do: "uniqueidentifier"
@@ -600,6 +634,10 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp reference_column_type(:serial, _opts), do: "bigint"
     defp reference_column_type(type, opts), do: column_type(type, opts)
+
+    defp reference_on_delete(:nilify_all), do: " ON DELETE SET NULL"
+    defp reference_on_delete(:delete_all), do: " ON DELETE CASCADE"
+    defp reference_on_delete(_), do: ""
 
     ## Helpers
 

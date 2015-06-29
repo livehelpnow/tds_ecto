@@ -42,9 +42,9 @@ defmodule Tds.Ecto.TdsTest do
     end
   end
 
-  defp normalize(query) do
-    {query, _params} = Ecto.Query.Planner.prepare(query, [], %{})
-    Ecto.Query.Planner.normalize(query, [], [])
+  defp normalize(query, operation \\ :all) do
+    {query, _params} = Ecto.Query.Planner.prepare(query, operation, [], %{})
+    Ecto.Query.Planner.normalize(query, operation, [])
   end
 
   test "from" do
@@ -55,6 +55,10 @@ defmodule Tds.Ecto.TdsTest do
   test "from without model" do
     query = "posts" |> select([r], r.x) |> normalize
     assert SQL.all(query) == ~s{SELECT p0.[x] FROM [posts] AS p0}
+
+    assert_raise ArgumentError, ~r"MSSQL requires a model", fn ->
+      SQL.all from(p in "posts", select: p) |> normalize()
+    end
   end
 
   test "from with schema source" do
@@ -91,7 +95,7 @@ defmodule Tds.Ecto.TdsTest do
 
   test "where" do
     query = Model |> where([r], r.x == 42) |> where([r], r.y != 43) |> select([r], r.x) |> normalize
-    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 WHERE (m0.[x] = 42) AND (m0.[y] != 43)}
+    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 WHERE (m0.[y] != 43) AND (m0.[x] = 42)}
   end
 
   test "order by" do
@@ -234,7 +238,10 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 HAVING (m0.[x] = m0.[x])}
 
     query = Model |> having([p], p.x == p.x) |> having([p], p.y == p.y) |> select([p], [p.y, p.x]) |> normalize
-    assert SQL.all(query) == ~s{SELECT m0.[y], m0.[x] FROM [model] AS m0 HAVING (m0.[x] = m0.[x]) AND (m0.[y] = m0.[y])}
+    assert SQL.all(query) == ~s{SELECT m0.[y], m0.[x] FROM [model] AS m0 HAVING (m0.[y] = m0.[y]) AND (m0.[x] = m0.[x])}
+
+    query = Model |> select([e], 1 in fragment("foo")) |> normalize
+    assert SQL.all(query) == ~s{SELECT 1 IN (foo) FROM [model] AS m0}
   end
 
   test "group by" do
@@ -278,6 +285,42 @@ defmodule Tds.Ecto.TdsTest do
   end
 
   ## *_all
+
+  test "update all" do
+    query = from(m in Model, update: [set: [x: 0]]) |> normalize(:update_all)
+    assert SQL.update_all(query) ==
+           ~s{UPDATE m0 SET m0.[x] = 0 FROM [model] AS m0}
+
+    query = from(m in Model, update: [set: [x: 0], inc: [y: 1, z: -3]]) |> normalize(:update_all)
+    assert SQL.update_all(query) ==
+           ~s{UPDATE m0 SET m0.[x] = 0, m0.[y] = m0.[y] + 1, m0.[z] = m0.[z] + -3 FROM [model] AS m0}
+
+    query = from(e in Model, where: e.x == 123, update: [set: [x: 0]]) |> normalize(:update_all)
+    assert SQL.update_all(query) ==
+           ~s{UPDATE m0 SET m0.[x] = 0 FROM [model] AS m0 WHERE (m0.[x] = 123)}
+
+    # TODO:
+    # nvarchar(max) conversion
+
+    query = from(m in Model, update: [set: [x: 0, y: "123"]]) |> normalize(:update_all)
+    assert SQL.update_all(query) ==
+           ~s{UPDATE m0 SET m0.[x] = 0, m0.[y] = CONVERT(nvarchar(max), 0x310032003300) FROM [model] AS m0}
+
+    query = from(m in Model, update: [set: [x: ^0]]) |> normalize(:update_all)
+    assert SQL.update_all(query) ==
+           ~s{UPDATE m0 SET m0.[x] = @1 FROM [model] AS m0}
+
+    query = Model |> join(:inner, [p], q in Model2, p.x == q.z)
+                  |> update([_], set: [x: 0]) |> normalize(:update_all)
+    assert SQL.update_all(query) ==
+           ~s{UPDATE m0 SET m0.[x] = 0 FROM [model] AS m0 INNER JOIN [model2] AS m1 ON m0.[x] = m1.[z]}
+
+    query = from(e in Model, where: e.x == 123, update: [set: [x: 0]],
+                             join: q in Model2, on: e.x == q.z) |> normalize(:update_all)
+    assert SQL.update_all(query) ==
+           ~s{UPDATE m0 SET m0.[x] = 0 FROM [model] AS m0 } <>
+           ~s{INNER JOIN [model2] AS m1 ON m0.[x] = m1.[z] WHERE (m0.[x] = 123)}
+  end
 
   test "update all" do
     query = Model |> Queryable.to_query |> normalize
@@ -400,7 +443,7 @@ defmodule Tds.Ecto.TdsTest do
 
   # DDL
 
-  import Ecto.Migration, only: [table: 1, table: 2, index: 2, index: 3, references: 1]
+  import Ecto.Migration, only: [table: 1, table: 2, index: 2, index: 3, references: 1, references: 2]
 
   test "executing a string during migration" do
     assert SQL.execute_ddl("example") == "example"
@@ -422,6 +465,29 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.execute_ddl(create) ==
            ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) NULL)|
   end
+
+  test "create table with reference and on_delete: :nothing clause" do
+    create = {:create, table(:posts),
+               [{:add, :id, :serial, [primary_key: true]},
+                {:add, :category_id, references(:categories, on_delete: :nothing), []} ]}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) NULL)|
+  end
+
+  test "create table with reference and on_delete: :nilify_all clause" do
+    create = {:create, table(:posts),
+               [{:add, :id, :serial, [primary_key: true]},
+                {:add, :category_id, references(:categories, on_delete: :nilify_all), []} ]}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) ON DELETE SET NULL NULL)|
+  end
+
+  test "create table with reference and on_delete: :delete_all clause" do
+    create = {:create, table(:posts),
+               [{:add, :id, :serial, [primary_key: true]},
+                {:add, :category_id, references(:categories, on_delete: :delete_all), []} ]}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) ON DELETE CASCADE NULL)|  end
 
   test "create table with column options" do
     create = {:create, table(:posts),
@@ -457,6 +523,14 @@ defmodule Tds.Ecto.TdsTest do
     ALTER TABLE [posts]
     DROP COLUMN [summary]
     """ |> String.strip |> String.replace("\n", " ")
+  end
+
+  test "create table with options" do
+    create = {:create, table(:posts, [options: "WITH FOO=BAR"]),
+               [{:add, :id, :serial, [primary_key: true]},
+                {:add, :created_at, :datetime, []}]}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [created_at] datetime2 NULL) WITH FOO=BAR|
   end
 
   # test "create index" do
