@@ -1,3 +1,7 @@
+# v0.3.1
+* Enhancements
+  * Updated tds to 0.4.0
+
 # v0.3.0
 * Enhancements
   * Updated to ecto 0.13.0
