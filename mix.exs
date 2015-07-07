@@ -4,7 +4,7 @@ defmodule TDS.Ecto.Mixfile do
   def project do
     [
       app: :tds_ecto,
-      version: "0.3.0",
+      version: "0.3.1",
       elixir: "~> 1.0",
       deps: deps,
       description: description,

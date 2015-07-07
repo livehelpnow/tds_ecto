@@ -3,6 +3,6 @@
   "poison": {:hex, :poison, "1.4.0"},
   "poolboy": {:hex, :poolboy, "1.5.1"},
   "postgrex": {:hex, :postgrex, "0.7.0"},
-  "tds": {:hex, :tds, "0.3.0"},
+  "tds": {:hex, :tds, "0.4.0"},
   "timex": {:hex, :timex, "0.14.3"},
   "tzdata": {:hex, :tzdata, "0.1.6"}}
