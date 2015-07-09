@@ -407,6 +407,10 @@ if Code.ensure_loaded?(Tds.Connection) do
       "CONVERT(nvarchar(max), 0x#{hex})"
     end
 
+    defp expr(%Decimal{} = decimal, _sources) do
+      Decimal.to_string(decimal, :normal)
+    end
+
     defp expr(%Ecto.Query.Tagged{value: binary, type: :binary}, _sources) when is_binary(binary) do
       hex = Base.encode16(binary, case: :lower)
       "0x#{hex}"
