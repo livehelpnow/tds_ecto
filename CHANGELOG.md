@@ -1,3 +1,7 @@
+# v0.3.2
+* Enhancements
+  * Lock down tds
+
 # v0.3.1
 * Enhancements
   * Updated tds to 0.4.0
