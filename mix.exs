@@ -23,7 +23,7 @@ defmodule TDS.Ecto.Mixfile do
     [
       #{:ecto, "~> 0.13.0"},
       {:ecto, github: "elixir-lang/ecto"},
-      {:tds, "~> 0.3"},
+      {:tds, "~> 0.5.0"},
       {:poison, only: :test}
     ]
   end
