@@ -533,6 +533,11 @@ defmodule Tds.Ecto.TdsTest do
            ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [created_at] datetime2 NULL) WITH FOO=BAR|
   end
 
+  test "rename table" do
+    rename = {:rename, table(:posts), table(:new_posts)}
+    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename [posts], [new_posts]|
+  end
+
   # test "create index" do
   #   create = {:create, index(:posts, [:category_id, :permalink])}
   #   assert SQL.execute_ddl(create) ==

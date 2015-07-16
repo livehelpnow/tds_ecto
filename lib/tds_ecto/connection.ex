@@ -515,6 +515,10 @@ if Code.ensure_loaded?(Tds.Connection) do
       end)
     end
 
+    def execute_ddl({:rename, %Table{}=current_table, %Table{}=new_table}, _repo) do
+      "EXEC sp_rename #{quote_table_name(current_table.name)}, #{quote_table_name(new_table.name)}"
+    end
+
     def execute_ddl({:create, %Index{}=index}, repo) do
 
       filter =
