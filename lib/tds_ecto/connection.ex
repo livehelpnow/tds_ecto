@@ -38,7 +38,7 @@ if Code.ensure_loaded?(Tds.Connection) do
               us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
               true -> {{{y,m,d},{hh,mm,ss}}, :datetime}
             end
-          %Ecto.Query.Tagged{value: value, type: :uuid} ->
+          %Ecto.Query.Tagged{value: value, type: type} when type in [:binary_id, :uuid] ->
             cond do
               value == nil -> {nil, :binary}
               String.length(value) > 16 ->
