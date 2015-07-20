@@ -130,7 +130,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
       update = "UPDATE #{name}"
       fields = update_fields(query.updates, sources)
-      from   = "FROM #{quote_table_name(table)} AS #{name}"
+      from   = "FROM #{table} AS #{name}"
       join   = join(query.joins, sources, query.lock)
       where  = where(query.wheres, sources)
 
@@ -142,27 +142,27 @@ if Code.ensure_loaded?(Tds.Connection) do
       {table, name, _model} = elem(sources, 0)
 
       delete = "DELETE #{name}"
-      from   = "FROM #{quote_table_name(table)} AS #{name}"
+      from   = "FROM #{table} AS #{name}"
       join   = join(query.joins, sources, query.lock)
       where  = where(query.wheres, sources)
 
       assemble([delete, from, join, where])
     end
 
-    def insert(table, fields, returning) do
+    def insert(prefix, table, fields, returning) do
       values =
         if fields == [] do
           returning(returning, "INSERTED") <>
           "DEFAULT VALUES"
         else
-          "(" <> Enum.map_join(fields, ", ", &quote_name/1) <> ") " <>
-          returning(returning, "INSERTED") <>
+          "(" <> Enum.map_join(fields, ", ", &quote_name/1) <> ")" <>
+          " " <> returning(returning, "INSERTED") <>
           "VALUES (" <> Enum.map_join(1..length(fields), ", ", &"@#{&1}") <> ")"
         end
-      "INSERT INTO #{quote_table_name(table)} " <> values
+      "INSERT INTO #{quote_table(prefix, table)} " <> values
     end
 
-    def update(table, fields, filters, returning) do
+    def update(prefix, table, fields, filters, returning) do
       {fields, count} = Enum.map_reduce fields, 1, fn field, acc ->
         {"#{quote_name(field)} = @#{acc}", acc + 1}
       end
@@ -170,17 +170,18 @@ if Code.ensure_loaded?(Tds.Connection) do
       {filters, _count} = Enum.map_reduce filters, count, fn field, acc ->
         {"#{quote_name(field)} = @#{acc}", acc + 1}
       end
-      "UPDATE #{quote_table_name(table)} SET " <> Enum.join(fields, ", ") <> returning(returning, "INSERTED") <>
-        " WHERE " <> Enum.join(filters, " AND ")
+      "UPDATE #{quote_table(prefix, table)} SET " <> Enum.join(fields, ", ") <>
+      " " <> returning(returning, "INSERTED") <>
+        "WHERE " <> Enum.join(filters, " AND ")
     end
 
-    def delete(table, filters, returning) do
+    def delete(prefix, table, filters, returning) do
       {filters, _} = Enum.map_reduce filters, 1, fn field, acc ->
         {"#{quote_name(field)} = @#{acc}", acc + 1}
       end
 
-      "DELETE FROM #{quote_table_name(table)}" <>
-      returning(returning,"DELETED") <> " WHERE " <> Enum.join(filters, " AND ")
+      "DELETE FROM #{quote_table(prefix, table)}" <>
+      " " <> returning(returning,"DELETED") <> "WHERE " <> Enum.join(filters, " AND ")
     end
 
     ## Query generation
@@ -219,7 +220,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp from(sources, lock) do
       {table, name, _model} = elem(sources, 0)
-      "FROM #{quote_table_name(table)} AS #{name}" <> lock(lock) |> String.strip
+      "FROM #{table} AS #{name}" <> lock(lock) |> String.strip
     end
 
     defp update_fields(updates, sources) do
@@ -253,7 +254,7 @@ if Code.ensure_loaded?(Tds.Connection) do
           on   = expr(expr, sources)
           qual = join_qual(qual)
 
-          "#{qual} JOIN #{quote_table_name(table)} AS #{name} " <> lock(lock) <> "ON " <> on
+          "#{qual} JOIN #{table} AS #{name} " <> lock(lock) <> "ON " <> on
       end)
     end
 
@@ -452,15 +453,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp returning([], _verb),
       do: ""
     defp returning(returning, verb) do
-      " OUTPUT " <> Enum.map_join(returning, ", ", fn(arg) -> "#{verb}.#{quote_name(arg)} " end)
-    end
-
-    defp create_names(query) do
-      sources = query.sources |> Tuple.to_list
-      Enum.reduce(sources, [], fn {table, model}, names ->
-        name = unique_name(names, String.first(table), 0)
-        [{table, name, model}|names]
-      end) |> Enum.reverse |> List.to_tuple
+      "OUTPUT " <> Enum.map_join(returning, ", ", fn(arg) -> "#{verb}.#{quote_name(arg)}" end) <> " "
     end
 
     # Brute force find unique name
@@ -471,6 +464,21 @@ if Code.ensure_loaded?(Tds.Connection) do
       else
         counted_name
       end
+    end
+
+    defp create_names(%{prefix: prefix, sources: sources}) do
+      create_names(prefix, sources, 0, tuple_size(sources)) |> List.to_tuple()
+    end
+
+    defp create_names(prefix, sources, pos, limit) when pos < limit do
+      {table, model} = elem(sources, pos)
+      name = String.first(table) <> Integer.to_string(pos)
+      [{quote_table(prefix, table), name, model}|
+        create_names(prefix, sources, pos + 1, limit)]
+    end
+
+    defp create_names(_prefix, _sources, pos, pos) do
+      []
     end
 
     # DDL
@@ -500,23 +508,23 @@ if Code.ensure_loaded?(Tds.Connection) do
       end)
       unique_constraints = unique_columns
         |> Enum.map_join(", ", &unique_expr/1)
-      "CREATE TABLE #{quote_table_name(table.name)} (#{column_definitions(columns)}" <>
+      "CREATE TABLE #{quote_name(table.name)} (#{column_definitions(columns)}" <>
       if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")" <>
       options
     end
 
     def execute_ddl({:drop, %Table{name: name}}, _repo) do
-      "DROP TABLE #{quote_table_name(name)}"
+      "DROP TABLE #{quote_name(name)}"
     end
 
     def execute_ddl({:alter, %Table{}=table, changes}, _repo) do
       Enum.map_join(changes, "; ", fn(change) ->
-        "ALTER TABLE #{quote_table_name(table.name)} #{column_change(change)}"
+        "ALTER TABLE #{quote_name(table.name)} #{column_change(change)}"
       end)
     end
 
     def execute_ddl({:rename, %Table{}=current_table, %Table{}=new_table}, _repo) do
-      "EXEC sp_rename #{quote_table_name(current_table.name)}, #{quote_table_name(new_table.name)}"
+      "EXEC sp_rename #{quote_name(current_table.name)}, #{quote_name(new_table.name)}"
     end
 
     def execute_ddl({:create, %Index{}=index}, repo) do
@@ -528,13 +536,13 @@ if Code.ensure_loaded?(Tds.Connection) do
         ""
       end
       assemble(["CREATE#{if index.unique, do: " UNIQUE"} INDEX",
-                quote_table_name(index.name), " ON ", quote_table_name(index.table),
+                quote_name(index.name), " ON ", quote_name(index.table),
                 " (#{Enum.map_join(index.columns, ", ", &index_expr/1)})",
                 filter])
     end
 
     def execute_ddl({:drop, %Index{}=index}, _repo) do
-      assemble(["DROP INDEX", quote_table_name(index.name), " ON ", quote_table_name(index.table)])
+      assemble(["DROP INDEX", quote_name(index.name), " ON ", quote_name(index.table)])
     end
 
     def execute_ddl(default, _repo) when is_binary(default), do: default
@@ -579,7 +587,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       raise "UNIQUE Indexes are not allowed on string types"
     end
     defp unique_expr({name, _type}) when is_atom(name) do
-      "CONSTRAINT uc_#{name} UNIQUE (#{quote_table_name(name)})"
+      "CONSTRAINT uc_#{name} UNIQUE (#{quote_name(name)})"
     end
     defp unique_expr(_), do: ""
 
@@ -648,14 +656,17 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp reference_on_delete(_), do: ""
 
     ## Helpers
+    defp quote_table(nil, name),
+      do: quote_name(name)
 
-    defp quote_name(name), do: "[#{name}]"
-    defp quote_table_name(name) do
-      "#{name}"
-        |> String.split(".")
-        |> Enum.map(&quote_name/1)
-        |> Enum.join(".")
-    end
+    defp quote_table(prefix, name),
+      do: quote_name(prefix) <> "." <> quote_name(name)
+
+    defp quote_name(name) when is_atom(name),
+      do: quote_name(Atom.to_string(name))
+
+    defp quote_name(name),
+      do: "[#{name}]"
 
     defp assemble(list) do
       list
