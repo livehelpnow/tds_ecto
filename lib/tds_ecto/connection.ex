@@ -69,6 +69,8 @@ if Code.ensure_loaded?(Tds.Connection) do
         val -> {val, nil}
       end
     end
+
+    defp param({_,_,_} = value), do: {value, :date}
     defp param(value) when value == true, do: {1, :boolean}
     defp param(value) when value == false, do: {0, :boolean}
     defp param(value), do: {value, nil}
@@ -382,6 +384,16 @@ if Code.ensure_loaded?(Tds.Connection) do
         {:raw, part}  -> part
         {:expr, expr} -> expr(expr, sources)
       end)
+    end
+
+    defp expr({:datetime_add, _, [datetime, count, interval]}, sources, query) do
+      "CAST(DATEADD(" <> interval <> ", " <> count <> ", " <> expr(date, sources, query) <>
+        ", " <> ") AS datetime)"
+    end
+
+    defp expr({:date_add, _, [date, count, interval]}, sources, query) do
+      "CAST(DATEADD(" <> interval <> ", " <> count <> ", " <> expr(date, sources, query) <>
+        ", " <> ") AS date)"
     end
 
     defp expr({fun, _, args}, sources) when is_atom(fun) and is_list(args) do
