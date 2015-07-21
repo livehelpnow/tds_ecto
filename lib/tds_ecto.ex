@@ -57,7 +57,17 @@ defmodule Tds.Ecto do
   use Ecto.Adapters.SQL, :tds
   @behaviour Ecto.Adapter.Storage
 
-  #def id_types(_repo), do: %{binary_id: Ecto.UUID}
+  ## Custom MSSQL types
+
+  def load({:embed, _} = type, binary) when is_binary(binary),
+    do: super(type, json_library.decode!(binary))
+  def load(:map, binary) when is_binary(binary),
+    do: super(:map, json_library.decode!(binary))
+  def load(:boolean, 0), do: {:ok, false}
+  def load(:boolean, 1), do: {:ok, true}
+  def load(type, value), do: super(type, value)
+
+  defp json_library, do: Application.get_env(:ecto, :json_library)
 
   def storage_up(opts) do
     database = Keyword.fetch!(opts, :database)
