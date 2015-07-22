@@ -1,3 +1,7 @@
+# v0.4.0
+* Enhancements
+  * Updated to ecto 0.14.1
+
 # v0.3.0
 * Enhancements
   * Updated to ecto 0.13.0
