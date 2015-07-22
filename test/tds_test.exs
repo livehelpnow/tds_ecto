@@ -14,6 +14,8 @@ defmodule Tds.Ecto.TdsTest do
     schema "model" do
       field :x, :integer
       field :y, :integer
+      field :z, :integer
+      field :w, {:array, :integer}
 
       has_many :comments, Tds.Ecto.TdsTest.Model2,
         references: :x,
@@ -43,8 +45,8 @@ defmodule Tds.Ecto.TdsTest do
   end
 
   defp normalize(query, operation \\ :all) do
-    {query, _params} = Ecto.Query.Planner.prepare(query, operation, [], %{})
-    Ecto.Query.Planner.normalize(query, operation, [])
+    {query, _params} = Ecto.Query.Planner.prepare(query, operation, Tds.Ecto)
+    Ecto.Query.Planner.normalize(query, operation, Tds.Ecto)
   end
 
   test "from" do
@@ -56,15 +58,14 @@ defmodule Tds.Ecto.TdsTest do
     query = "posts" |> select([r], r.x) |> normalize
     assert SQL.all(query) == ~s{SELECT p0.[x] FROM [posts] AS p0}
 
-    assert_raise ArgumentError, ~r"MSSQL requires a model", fn ->
+    assert_raise Ecto.QueryError, ~r"MSSQL requires a model", fn ->
       SQL.all from(p in "posts", select: p) |> normalize()
     end
   end
-
-  test "from with schema source" do
-    query = "public.posts" |> select([r], r.x) |> normalize
-    assert SQL.all(query) == ~s{SELECT p0.[x] FROM [public].[posts] AS p0}
-  end
+  # test "from with schema source" do
+  #   query = "public.posts" |> select([r], r.x) |> normalize
+  #   assert SQL.all(query) == ~s{SELECT p0.[x] FROM [public].[posts] AS p0}
+  # end
 
   test "select" do
     query = Model |> select([r], {r.x, r.y}) |> normalize
@@ -87,7 +88,7 @@ defmodule Tds.Ecto.TdsTest do
     query = Model |> distinct(false) |> select([r], {r.x, r.y}) |> normalize
     assert SQL.all(query) == ~s{SELECT m0.[x], m0.[y] FROM [model] AS m0}
 
-    assert_raise ArgumentError, "MSSQL does not allow expressions in distinct", fn ->
+    assert_raise Ecto.QueryError, ~r"MSSQL does not allow expressions in distinct", fn ->
       query = Model |> distinct([r], [r.x, r.y]) |> select([r], {r.x, r.y}) |> normalize
       SQL.all(query)
     end
@@ -95,7 +96,7 @@ defmodule Tds.Ecto.TdsTest do
 
   test "where" do
     query = Model |> where([r], r.x == 42) |> where([r], r.y != 43) |> select([r], r.x) |> normalize
-    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 WHERE (m0.[y] != 43) AND (m0.[x] = 42)}
+    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 WHERE (m0.[x] = 42) AND (m0.[y] != 43)}
   end
 
   test "order by" do
@@ -123,7 +124,7 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.all(query) == ~s{SELECT TOP(3) 0 FROM [model] AS m0 ORDER BY m0.[x] OFFSET 5 ROW}
 
     query = Model |> offset([r], 5) |> limit([r], 3) |> select([], 0) |> normalize
-    assert_raise ArgumentError, fn ->
+    assert_raise Ecto.QueryError, fn ->
       SQL.all(query)
     end
   end
@@ -238,7 +239,7 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 HAVING (m0.[x] = m0.[x])}
 
     query = Model |> having([p], p.x == p.x) |> having([p], p.y == p.y) |> select([p], [p.y, p.x]) |> normalize
-    assert SQL.all(query) == ~s{SELECT m0.[y], m0.[x] FROM [model] AS m0 HAVING (m0.[y] = m0.[y]) AND (m0.[x] = m0.[x])}
+    assert SQL.all(query) == ~s{SELECT m0.[y], m0.[x] FROM [model] AS m0 HAVING (m0.[x] = m0.[x]) AND (m0.[y] = m0.[y])}
 
     query = Model |> select([e], 1 in fragment("foo")) |> normalize
     assert SQL.all(query) == ~s{SELECT 1 IN (foo) FROM [model] AS m0}
@@ -304,7 +305,7 @@ defmodule Tds.Ecto.TdsTest do
 
     query = from(m in Model, update: [set: [x: 0, y: "123"]]) |> normalize(:update_all)
     assert SQL.update_all(query) ==
-           ~s{UPDATE m0 SET m0.[x] = 0, m0.[y] = CONVERT(nvarchar(max), 0x310032003300) FROM [model] AS m0}
+           ~s{UPDATE m0 SET m0.[x] = 0, m0.[y] = 123 FROM [model] AS m0}
 
     query = from(m in Model, update: [set: [x: ^0]]) |> normalize(:update_all)
     assert SQL.update_all(query) ==
@@ -349,6 +350,12 @@ defmodule Tds.Ecto.TdsTest do
            ~s{UPDATE m0 SET m0.[x] = 0 FROM [model] AS m0 INNER JOIN [model2] AS m1 ON m0.[x] = m1.[z] WHERE (m0.[x] = 123)}
   end
 
+  test "update all with prefix" do
+    query = from(m in Model, update: [set: [x: 0]]) |> normalize(:update_all)
+    assert SQL.update_all(%{query | prefix: "prefix"}) ==
+           ~s{UPDATE m0 SET m0.[x] = 0 FROM [prefix].[model] AS m0}
+  end
+
   test "delete all" do
     query = Model |> Queryable.to_query |> normalize
     assert SQL.delete_all(query) == ~s{DELETE m0 FROM [model] AS m0}
@@ -366,6 +373,13 @@ defmodule Tds.Ecto.TdsTest do
            ~s{DELETE m0 FROM [model] AS m0 } <>
            ~s{INNER JOIN [model2] AS m1 ON m0.[x] = m1.[z] WHERE (m0.[x] = 123)}
   end
+
+  test "delete all with prefix" do
+    query = Model |> Queryable.to_query |> normalize
+    assert SQL.delete_all(%{query | prefix: "prefix"}) ==
+      ~s{DELETE m0 FROM [prefix].[model] AS m0}
+  end
+
 
   ## Joins
 
@@ -390,7 +404,13 @@ defmodule Tds.Ecto.TdsTest do
   test "join without model" do
     query = "posts" |> join(:inner, [p], q in "comments", p.x == q.z) |> select([], 0) |> normalize
     assert SQL.all(query) ==
-           ~s{SELECT 0 FROM [posts] AS p0 INNER JOIN [comments] AS c0 ON p0.[x] = c0.[z]}
+           ~s{SELECT 0 FROM [posts] AS p0 INNER JOIN [comments] AS c1 ON p0.[x] = c1.[z]}
+  end
+
+  test "join with prefix" do
+    query = Model |> join(:inner, [p], q in Model2, p.x == q.z) |> select([], 0) |> normalize
+    assert SQL.all(%{query | prefix: "prefix"}) ==
+           ~s{SELECT 0 FROM [prefix].[model] AS m0 INNER JOIN [prefix].[model2] AS m1 ON m0.[x] = m1.[z]}
   end
 
   ## Associations
@@ -424,21 +444,39 @@ defmodule Tds.Ecto.TdsTest do
   # Model based
 
   test "insert" do
-    query = SQL.insert("model", [:x, :y], [])
+    query = SQL.insert(nil, "model", [:x, :y], [])
     assert query == ~s{INSERT INTO [model] ([x], [y]) VALUES (@1, @2)}
 
-    query = SQL.insert("model", [], [])
+    query = SQL.insert(nil, "model", [], [:id])
+    assert query == ~s{INSERT INTO [model] OUTPUT INSERTED.[id] DEFAULT VALUES}
+
+    query = SQL.insert(nil, "model", [], [])
     assert query == ~s{INSERT INTO [model] DEFAULT VALUES}
+
+    query = SQL.insert("prefix", "model", [], [])
+    assert query == ~s{INSERT INTO [prefix].[model] DEFAULT VALUES}
   end
 
   test "update" do
-    query = SQL.update("model", [:id], [:x, :y], [])
+    query = SQL.update(nil, "model", [:id], [:x, :y], [])
     assert query == ~s{UPDATE [model] SET [id] = @1 WHERE [x] = @2 AND [y] = @3}
+
+    query = SQL.update(nil, "model", [:x, :y], [:id], [:z])
+    assert query == ~s{UPDATE [model] SET [x] = @1, [y] = @2 OUTPUT INSERTED.[z] WHERE [id] = @3}
+
+    query = SQL.update("prefix", "model", [:x, :y], [:id], [])
+    assert query == ~s{UPDATE [prefix].[model] SET [x] = @1, [y] = @2 WHERE [id] = @3}
   end
 
   test "delete" do
-    query = SQL.delete("model", [:x, :y], [])
+    query = SQL.delete(nil, "model", [:x, :y], [])
     assert query == ~s{DELETE FROM [model] WHERE [x] = @1 AND [y] = @2}
+
+    query = SQL.delete(nil, "model", [:x, :y], [:z])
+    assert query == ~s{DELETE FROM [model] OUTPUT DELETED.[z] WHERE [x] = @1 AND [y] = @2}
+
+    query = SQL.delete("prefix", "model", [:x, :y], [])
+    assert query == ~s{DELETE FROM [prefix].[model] WHERE [x] = @1 AND [y] = @2}
   end
 
   # DDL
@@ -531,6 +569,11 @@ defmodule Tds.Ecto.TdsTest do
                 {:add, :created_at, :datetime, []}]}
     assert SQL.execute_ddl(create) ==
            ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [created_at] datetime2 NULL) WITH FOO=BAR|
+  end
+
+  test "rename table" do
+    rename = {:rename, table(:posts), table(:new_posts)}
+    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename [posts], [new_posts]|
   end
 
   # test "create index" do
