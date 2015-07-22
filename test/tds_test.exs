@@ -58,7 +58,7 @@ defmodule Tds.Ecto.TdsTest do
     query = "posts" |> select([r], r.x) |> normalize
     assert SQL.all(query) == ~s{SELECT p0.[x] FROM [posts] AS p0}
 
-    assert_raise ArgumentError, ~r"MSSQL requires a model", fn ->
+    assert_raise Ecto.QueryError, ~r"MSSQL requires a model", fn ->
       SQL.all from(p in "posts", select: p) |> normalize()
     end
   end
@@ -88,7 +88,7 @@ defmodule Tds.Ecto.TdsTest do
     query = Model |> distinct(false) |> select([r], {r.x, r.y}) |> normalize
     assert SQL.all(query) == ~s{SELECT m0.[x], m0.[y] FROM [model] AS m0}
 
-    assert_raise ArgumentError, "MSSQL does not allow expressions in distinct", fn ->
+    assert_raise Ecto.QueryError, ~r"MSSQL does not allow expressions in distinct", fn ->
       query = Model |> distinct([r], [r.x, r.y]) |> select([r], {r.x, r.y}) |> normalize
       SQL.all(query)
     end
@@ -124,7 +124,7 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.all(query) == ~s{SELECT TOP(3) 0 FROM [model] AS m0 ORDER BY m0.[x] OFFSET 5 ROW}
 
     query = Model |> offset([r], 5) |> limit([r], 3) |> select([], 0) |> normalize
-    assert_raise ArgumentError, fn ->
+    assert_raise Ecto.QueryError, fn ->
       SQL.all(query)
     end
   end
