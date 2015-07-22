@@ -248,14 +248,14 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp join(%Query{joins: []}, _sources), do: nil
     defp join(%Query{joins: joins, lock: lock} = query, sources) do
-      Enum.map_join(query.joins, " ", fn
+      Enum.map_join(joins, " ", fn
         %JoinExpr{on: %QueryExpr{expr: expr}, qual: qual, ix: ix} ->
           {table, name, _model} = elem(sources, ix)
 
           on   = expr(expr, sources, query)
           qual = join_qual(qual)
 
-          "#{qual} JOIN #{table} AS #{name} " <> lock(query.lock) <> "ON " <> on
+          "#{qual} JOIN #{table} AS #{name} " <> lock(lock) <> "ON " <> on
       end)
     end
 
@@ -319,7 +319,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp lock(nil), do: ""
     defp lock(lock_clause), do: " #{lock_clause} "
 
-    defp boolean(_name, [], _sources, query), do: nil
+    defp boolean(_name, [], _sources, _query), do: nil
     defp boolean(name, query_exprs, sources, query) do
       name <> " " <>
         Enum.map_join(query_exprs, " AND ", fn
@@ -332,7 +332,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       "@#{ix+1}"
     end
 
-    defp expr({{:., _, [{:&, _, [idx]}, field]}, _, []} = p1, sources, _query) when is_atom(field) do
+    defp expr({{:., _, [{:&, _, [idx]}, field]}, _, []}, sources, _query) when is_atom(field) do
       {_, name, _} = elem(sources, idx)
       "#{name}.#{quote_name(field)}"
     end
@@ -482,14 +482,14 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     # Brute force find unique name
-    defp unique_name(names, name, counter) do
-      counted_name = name <> Integer.to_string(counter)
-      if Enum.any?(names, fn {_, n, _} -> n == counted_name end) do
-        unique_name(names, name, counter + 1)
-      else
-        counted_name
-      end
-    end
+    # defp unique_name(names, name, counter) do
+    #   counted_name = name <> Integer.to_string(counter)
+    #   if Enum.any?(names, fn {_, n, _} -> n == counted_name end) do
+    #     unique_name(names, name, counter + 1)
+    #   else
+    #     counted_name
+    #   end
+    # end
 
     defp create_names(%{prefix: prefix, sources: sources}) do
       create_names(prefix, sources, 0, tuple_size(sources)) |> List.to_tuple()
@@ -525,7 +525,9 @@ if Code.ensure_loaded?(Tds.Connection) do
        WHERE i.name = '#{escape_string(to_string(name))}'
       """
     end
+
     def execute_ddl(_, _ \\ nil)
+
     def execute_ddl({:create, %Table{}=table, columns}, _repo) do
       options = options_expr(table.options)
       unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->
@@ -571,6 +573,9 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     def execute_ddl(default, _repo) when is_binary(default), do: default
+
+    def execute_ddl(keyword, _repo) when is_list(keyword),
+      do: error!(nil, "MSSQL adapter does not support keyword lists in execute")
 
     defp column_definitions(columns) do
       Enum.map_join(columns, ", ", &column_definition/1)
@@ -638,6 +643,8 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp options_expr(nil),
       do: ""
+    defp options_expr(keyword) when is_list(keyword),
+      do: error!(nil, "MSSQL adapter does not support keyword lists in :options")
     defp options_expr(options),
       do: " #{options}"
 
