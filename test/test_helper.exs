@@ -29,7 +29,7 @@ Application.put_env(:ecto, PoolRepo,
   adapter: Tds.Ecto,
   filter_null_on_unique_indexes: true,
   url: "ecto://mssql:mssql@mssql.local/ecto_test",
-  size: 10)
+  pool_size: 10)
 
 defmodule Ecto.Integration.PoolRepo do
   use Ecto.Integration.Repo,

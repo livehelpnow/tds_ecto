@@ -45,7 +45,7 @@ defmodule Tds.Ecto.TdsTest do
   end
 
   defp normalize(query, operation \\ :all) do
-    {query, _params} = Ecto.Query.Planner.prepare(query, operation, Tds.Ecto)
+    {query, _params, _key} = Ecto.Query.Planner.prepare(query, operation, Tds.Ecto)
     Ecto.Query.Planner.normalize(query, operation, Tds.Ecto)
   end
 
@@ -323,33 +323,6 @@ defmodule Tds.Ecto.TdsTest do
            ~s{INNER JOIN [model2] AS m1 ON m0.[x] = m1.[z] WHERE (m0.[x] = 123)}
   end
 
-  test "update all" do
-    query = Model |> Queryable.to_query |> normalize
-    assert SQL.update_all(query, [x: 0]) ==
-           ~s{UPDATE m0 SET m0.[x] = 0 FROM [model] AS m0}
-
-    query = from(e in Model, where: e.x == 123) |> normalize
-    assert SQL.update_all(query, [x: 0]) ==
-           ~s{UPDATE m0 SET m0.[x] = 0 FROM [model] AS m0 WHERE (m0.[x] = 123)}
-
-    # TODO
-    # query = Model |> Queryable.to_query |> normalize
-    # assert SQL.update_all(query, [x: 0, y: "123"]) ==
-    #        ~s{UPDATE m0 SET m0.[x] = 0, m0.[y] = '123' FROM [model] AS m0 }
-
-    query = Model |> Queryable.to_query |> normalize
-    assert SQL.update_all(query, [x: quote(do: ^0)]) ==
-           ~s{UPDATE m0 SET m0.[x] = @1 FROM [model] AS m0}
-
-    query = Model |> join(:inner, [p], q in Model2, p.x == q.z) |> normalize
-    assert SQL.update_all(query, [x: 0]) ==
-           ~s{UPDATE m0 SET m0.[x] = 0 FROM [model] AS m0 INNER JOIN [model2] AS m1 ON m0.[x] = m1.[z]}
-
-    query = from(e in Model, where: e.x == 123, join: q in Model2, on: e.x == q.z) |> normalize
-    assert SQL.update_all(query, [x: 0]) ==
-           ~s{UPDATE m0 SET m0.[x] = 0 FROM [model] AS m0 INNER JOIN [model2] AS m1 ON m0.[x] = m1.[z] WHERE (m0.[x] = 123)}
-  end
-
   test "update all with prefix" do
     query = from(m in Model, update: [set: [x: 0]]) |> normalize(:update_all)
     assert SQL.update_all(%{query | prefix: "prefix"}) ==
@@ -573,7 +546,12 @@ defmodule Tds.Ecto.TdsTest do
 
   test "rename table" do
     rename = {:rename, table(:posts), table(:new_posts)}
-    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename [posts], [new_posts]|
+    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'posts', 'new_posts'|
+  end
+
+  test "rename column" do
+    rename = {:rename, table(:posts), :given_name, :first_name}
+    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'posts.given_name', 'first_name', 'COLUMN'|
   end
 
   # test "create index" do
