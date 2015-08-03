@@ -551,7 +551,11 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     def execute_ddl({:rename, %Table{}=current_table, %Table{}=new_table}, _repo) do
-      "EXEC sp_rename #{quote_name(current_table.name)}, #{quote_name(new_table.name)}"
+      "EXEC sp_rename '#{current_table.name}', '#{new_table.name}'"
+    end
+
+    def execute_ddl({:rename, %Table{}=current_table, current_column, new_column}, _repo) do
+      "EXEC sp_rename '#{current_table.name}.#{current_column}', '#{new_column}', 'COLUMN'"
     end
 
     def execute_ddl({:create, %Index{}=index}, repo) do
