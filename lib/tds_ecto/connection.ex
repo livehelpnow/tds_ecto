@@ -535,7 +535,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       prefix = if command == :create_if_not_exists, do: "IF NOT EXISTS (" <> ddl_exists(table) <> ") BEGIN ", else: ""
       postfix = if command == :create_if_not_exists, do: "END", else: ""
       prefix <>
-      "CREATE TABLE #{quote_name(table.name)} (#{column_definitions(columns)}" <>
+      "CREATE TABLE #{quote_name(table.name)} (#{column_definitions(table, columns)}" <>
       if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")" <>
       options <> postfix
     end
@@ -548,7 +548,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     def execute_ddl({:alter, %Table{}=table, changes}, _repo) do
       Enum.map_join(changes, "; ", fn(change) ->
-        "ALTER TABLE #{quote_name(table.name)} #{column_change(change)}"
+        "ALTER TABLE #{quote_name(table.name)} #{column_change(table, change)}"
       end)
     end
 
@@ -587,27 +587,45 @@ if Code.ensure_loaded?(Tds.Connection) do
     def execute_ddl(keyword, _repo) when is_list(keyword),
       do: error!(nil, "MSSQL adapter does not support keyword lists in execute")
 
-    defp column_definitions(columns) do
-      Enum.map_join(columns, ", ", &column_definition/1)
+    defp column_definitions(table, columns) do
+      Enum.map_join(columns, ", ", &column_definition(table, &1))
     end
 
-    defp column_definition({:add, name, type, opts}) do
+    defp column_definition(table, {:add, name, %Reference{} = ref, opts}) do
+      assemble([
+        quote_name(name), reference_column_type(ref.type, opts), column_options(opts),
+        reference_expr(ref, table, name)
+      ])
+    end
+
+    defp column_definition(_table, {:add, name, type, opts}) do
       assemble([quote_name(name), column_type(type, opts), column_options(opts), serial_expr(type)])
     end
 
-    # defp column_changes(columns) do
-    #   Enum.map_join(columns, ", ", &column_change/1)
+    # defp column_changes(table, columns) do
+    #   Enum.map_join(columns, ", ", &column_change(table, &1))
     # end
 
-    defp column_change({:add, name, type, opts}) do
+    defp column_change(table, {:add, name, %Reference{} = ref, opts}) do
+      assemble([
+        "ADD COLUMN", quote_name(name), reference_column_type(ref.type, opts), column_options(opts),
+        reference_expr(ref, table, name)
+      ])
+    end
+
+    defp column_change(_table, {:add, name, type, opts}) do
       assemble(["ADD", quote_name(name), column_type(type, opts), column_options(opts)])
     end
 
-    defp column_change({:modify, name, type, opts}) do
+    defp column_change(table, {:modify, name, %Reference{} = ref, _opts}) do
+        constraint_expr(ref, table, name)
+    end
+
+    defp column_change(_table, {:modify, name, type, opts}) do
       assemble(["ALTER COLUMN", quote_name(name), column_type(type, opts), column_options(opts)])
     end
 
-    defp column_change({:remove, name}), do: "DROP COLUMN #{quote_name(name)}"
+    defp column_change(_table, {:remove, name}), do: "DROP COLUMN #{quote_name(name)}"
 
     defp column_options(opts) do
       default = Keyword.get(opts, :default)
@@ -658,11 +676,11 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp options_expr(options),
       do: " #{options}"
 
-    defp column_type(%Reference{} = ref, opts) do
-      "#{reference_column_type(ref.type, opts)} FOREIGN KEY REFERENCES " <>
-      "#{quote_name(ref.table)}(#{quote_name(ref.column)})" <>
-      reference_on_delete(ref.on_delete)
-    end
+    # defp column_type(%Reference{} = ref, opts) do
+    #   "#{reference_column_type(ref.type, opts)} FOREIGN KEY (opts) REFERENCES " <>
+    #   "#{quote_name(ref.table)}(#{quote_name(ref.column)})" <>
+    #   reference_on_delete(ref.on_delete)
+    # end
 
     defp column_type({:array, _type}, _opts),
       do: raise "Array column type is not supported for MSSQL"
@@ -689,6 +707,21 @@ if Code.ensure_loaded?(Tds.Connection) do
       end
     end
 
+    defp reference_expr(%Reference{} = ref, table, name),
+      do: "CONSTRAINT #{reference_name(ref, table, name)} FOREIGN KEY (#{name}) " <>
+          "REFERENCES #{quote_name(ref.table)}(#{quote_name(ref.column)})" <>
+          reference_on_delete(ref.on_delete)
+
+    defp constraint_expr(%Reference{} = ref, table, name),
+      do: "ADD CONSTRAINT #{reference_name(ref, table, name)} " <>
+          "FOREIGN KEY (#{quote_name(name)}) " <>
+          "REFERENCES #{quote_name(ref.table)}(#{quote_name(ref.column)})" <>
+          reference_on_delete(ref.on_delete)
+
+    defp reference_name(%Reference{name: nil}, table, column),
+      do: quote_name("#{table.name}_#{column}_fkey")
+    defp reference_name(%Reference{name: name}, _table, _column),
+      do: quote_name(name)
 
     defp reference_column_type(:serial, _opts), do: "bigint"
     defp reference_column_type(type, opts), do: column_type(type, opts)
