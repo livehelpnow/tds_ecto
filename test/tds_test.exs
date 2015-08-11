@@ -474,7 +474,15 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories), []} ]}
     assert SQL.execute_ddl(create) ==
-           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) NULL)|
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint NULL CONSTRAINT [posts_category_id_fkey] FOREIGN KEY (category_id) REFERENCES [categories]([id]))|
+  end
+
+  test "create table with named reference" do
+    create = {:create, table(:posts),
+               [{:add, :id, :serial, [primary_key: true]},
+                {:add, :category_id, references(:categories, name: :foo_bar), []} ]}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint NULL CONSTRAINT [foo_bar] FOREIGN KEY (category_id) REFERENCES [categories]([id]))|
   end
 
   test "create table with reference and on_delete: :nothing clause" do
@@ -482,7 +490,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories, on_delete: :nothing), []} ]}
     assert SQL.execute_ddl(create) ==
-           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) NULL)|
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint NULL CONSTRAINT [posts_category_id_fkey] FOREIGN KEY (category_id) REFERENCES [categories]([id]))|
   end
 
   test "create table with reference and on_delete: :nilify_all clause" do
@@ -490,7 +498,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories, on_delete: :nilify_all), []} ]}
     assert SQL.execute_ddl(create) ==
-           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) ON DELETE SET NULL NULL)|
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint NULL CONSTRAINT [posts_category_id_fkey] FOREIGN KEY (category_id) REFERENCES [categories]([id]) ON DELETE SET NULL)|
   end
 
   test "create table with reference and on_delete: :delete_all clause" do
@@ -498,7 +506,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories, on_delete: :delete_all), []} ]}
     assert SQL.execute_ddl(create) ==
-           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint FOREIGN KEY REFERENCES [categories]([id]) ON DELETE CASCADE NULL)|  end
+           ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [category_id] bigint NULL CONSTRAINT [posts_category_id_fkey] FOREIGN KEY (category_id) REFERENCES [categories]([id]) ON DELETE CASCADE)|  end
 
   test "create table with column options" do
     create = {:create, table(:posts),
@@ -534,6 +542,26 @@ defmodule Tds.Ecto.TdsTest do
     ALTER TABLE [posts]
     DROP COLUMN [summary]
     """ |> String.strip |> String.replace("\n", " ")
+  end
+
+  test "alter table with reference" do
+    alter = {:alter, table(:posts),
+               [{:add, :comment_id, references(:comments), []}]}
+
+    assert SQL.execute_ddl(alter) == """
+    ALTER TABLE [posts] ADD COLUMN [comment_id] bigint NULL CONSTRAINT [posts_comment_id_fkey] FOREIGN KEY (comment_id) REFERENCES [comments]([id])
+    """ |> remove_newlines
+  end
+
+  test "alter table with adding foreign key constraint" do
+    alter = {:alter, table(:posts),
+              [{:modify, :user_id, references(:users, on_delete: :delete_all), []}]
+            }
+
+    assert SQL.execute_ddl(alter) == """
+    ALTER TABLE [posts]
+    ADD CONSTRAINT [posts_user_id_fkey] FOREIGN KEY ([user_id]) REFERENCES [users]([id]) ON DELETE CASCADE
+    """ |> remove_newlines
   end
 
   test "create table with options" do
@@ -592,6 +620,9 @@ defmodule Tds.Ecto.TdsTest do
   #   assert SQL.execute_ddl(drop) == ~s|DROP INDEX `posts$main` ON `posts` LOCK=NONE|
   # end
 
+  defp remove_newlines(string) do
+    string |> String.strip |> String.replace("\n", " ")
+  end
 
 end
 
