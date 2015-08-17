@@ -608,7 +608,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp column_change(table, {:add, name, %Reference{} = ref, opts}) do
       assemble([
-        "ADD COLUMN", quote_name(name), reference_column_type(ref.type, opts), column_options(opts),
+        "ADD", quote_name(name), reference_column_type(ref.type, opts), column_options(opts),
         reference_expr(ref, table, name)
       ])
     end
