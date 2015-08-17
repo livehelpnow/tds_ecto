@@ -516,11 +516,15 @@ defmodule Tds.Ecto.TdsTest do
                 {:add, :is_active, :boolean, [default: true]}]}
 
     assert SQL.execute_ddl(create) == """
-    CREATE TABLE [posts] ([name] nvarchar(20) DEFAULT 'Untitled' NOT NULL,
-    [price] numeric(8,2) DEFAULT expr NULL,
-    [on_hand] integer DEFAULT 0 NULL,
-    [is_active] bit DEFAULT 1 NULL)
-    """ |> String.strip |> String.replace("\n", " ")
+    CREATE TABLE [posts] ([name] nvarchar(20) NOT NULL
+    CONSTRAINT DF_name DEFAULT N'Untitled',
+    [price] numeric(8,2) NULL
+    CONSTRAINT DF_price DEFAULT expr,
+    [on_hand] integer NULL
+    CONSTRAINT DF_on_hand DEFAULT 0,
+    [is_active] bit NULL
+    CONSTRAINT DF_is_active DEFAULT 1)
+    """ |> remove_newlines
   end
 
   test "drop table" do
@@ -535,13 +539,19 @@ defmodule Tds.Ecto.TdsTest do
                 {:remove, :summary}]}
 
     assert SQL.execute_ddl(alter) == """
-    ALTER TABLE [posts]
-    ADD [title] nvarchar(100) DEFAULT 'Untitled' NOT NULL;
-    ALTER TABLE [posts]
-    ALTER COLUMN [price] numeric(8,2) NULL;
-    ALTER TABLE [posts]
-    DROP COLUMN [summary]
-    """ |> String.strip |> String.replace("\n", " ")
+    ALTER TABLE [posts] ADD [title] nvarchar(100) NOT NULL ;
+    IF (OBJECT_ID('DF_title', 'D') IS NOT NULL)
+    BEGIN
+    ALTER TABLE [posts] DROP CONSTRAINT DF_title
+    END;
+    ALTER TABLE [posts] ADD CONSTRAINT DF_title DEFAULT N'Untitled' FOR [title];
+    ALTER TABLE [posts] ALTER COLUMN [price] numeric(8,2) NULL ;
+    IF (OBJECT_ID('DF_price', 'D') IS NOT NULL)
+    BEGIN
+    ALTER TABLE [posts] DROP CONSTRAINT DF_price
+    END;
+    ALTER TABLE [posts] DROP COLUMN [summary]
+    """ |> remove_newlines
   end
 
   test "alter table with reference" do
@@ -549,7 +559,11 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :comment_id, references(:comments), []}]}
 
     assert SQL.execute_ddl(alter) == """
-    ALTER TABLE [posts] ADD COLUMN [comment_id] bigint NULL CONSTRAINT [posts_comment_id_fkey] FOREIGN KEY (comment_id) REFERENCES [comments]([id])
+    ALTER TABLE [posts] ADD [comment_id] bigint NULL CONSTRAINT [posts_comment_id_fkey] FOREIGN KEY (comment_id) REFERENCES [comments]([id]) ;
+    IF (OBJECT_ID('DF_comment_id', 'D') IS NOT NULL)
+    BEGIN
+    ALTER TABLE [posts] DROP CONSTRAINT DF_comment_id
+    END
     """ |> remove_newlines
   end
 
@@ -559,8 +573,16 @@ defmodule Tds.Ecto.TdsTest do
             }
 
     assert SQL.execute_ddl(alter) == """
-    ALTER TABLE [posts]
-    ADD CONSTRAINT [posts_user_id_fkey] FOREIGN KEY ([user_id]) REFERENCES [users]([id]) ON DELETE CASCADE
+    ALTER TABLE [posts] ALTER COLUMN [user_id] bigint NULL ;
+    IF (OBJECT_ID('[posts_user_id_fkey]', 'F') IS NOT NULL)
+    BEGIN
+    ALTER TABLE [posts] DROP CONSTRAINT [posts_user_id_fkey]
+    END;
+    ALTER TABLE [posts] ADD CONSTRAINT [posts_user_id_fkey] FOREIGN KEY ([user_id]) REFERENCES [users]([id]) ON DELETE CASCADE ;
+    IF (OBJECT_ID('DF_user_id', 'D') IS NOT NULL)
+    BEGIN
+    ALTER TABLE [posts] DROP CONSTRAINT DF_user_id
+    END
     """ |> remove_newlines
   end
 

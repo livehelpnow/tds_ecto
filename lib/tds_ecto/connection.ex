@@ -79,6 +79,35 @@ if Code.ensure_loaded?(Tds.Connection) do
       Application.get_env(:ecto, :json_library)
     end
 
+    def to_constraints(%Tds.Error{mssql: %{number: 2601, msg_text: message}}) do
+      case :binary.split(message, "unique index ") do
+        [_, quoted] ->
+          case :binary.split(quoted, ". The") do
+            [quoted, _] -> [unique: strip_quotes(quoted)]
+            _ -> []
+          end
+        _ -> []
+      end
+    end
+    def to_constraints(%Tds.Error{mssql: %{number: 547, msg_text: message}}) do
+      case :binary.split(message, "constraint ") do
+        [_, quoted] ->
+          case :binary.split(quoted, ". The") do
+            [quoted, _] -> [unique: strip_quotes(quoted)]
+            _ -> []
+          end
+        _ -> []
+      end
+    end
+    def to_constraints(%Tds.Error{}),
+      do: []
+
+    defp strip_quotes(quoted) do
+      size = byte_size(quoted) - 2
+      <<_, unquoted::binary-size(size), _>> = quoted
+      unquoted
+    end
+
     ## Transaction
 
     def begin_transaction do
@@ -593,13 +622,13 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp column_definition(table, {:add, name, %Reference{} = ref, opts}) do
       assemble([
-        quote_name(name), reference_column_type(ref.type, opts), column_options(opts),
+        quote_name(name), reference_column_type(ref.type, opts), column_options(name, ref.type, opts), default_expr(opts, name, ref.type),
         reference_expr(ref, table, name)
       ])
     end
 
     defp column_definition(_table, {:add, name, type, opts}) do
-      assemble([quote_name(name), column_type(type, opts), column_options(opts), serial_expr(type)])
+      assemble([quote_name(name), column_type(type, opts), column_options(name, type, opts), serial_expr(type), default_expr(opts, name, type)])
     end
 
     # defp column_changes(table, columns) do
@@ -608,31 +637,49 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp column_change(table, {:add, name, %Reference{} = ref, opts}) do
       assemble([
-        "ADD", quote_name(name), reference_column_type(ref.type, opts), column_options(opts),
-        reference_expr(ref, table, name)
+        "ADD", quote_name(name), reference_column_type(ref.type, opts), column_options(name, ref.type, opts),
+        reference_expr(ref, table, name), modify_default(table.name, name, ref.type, opts)
       ])
     end
 
-    defp column_change(_table, {:add, name, type, opts}) do
-      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(opts)])
+    defp column_change(table, {:add, name, type, opts}) do
+      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(name, type, opts), modify_default(table.name, name, type, opts)])
     end
 
-    defp column_change(table, {:modify, name, %Reference{} = ref, _opts}) do
-        constraint_expr(ref, table, name)
+    defp column_change(table, {:modify, name, %Reference{} = ref, opts}) do
+        assemble([
+        "ALTER COLUMN", quote_name(name), reference_column_type(ref.type, opts), column_options(name, ref.type, opts),
+        constraint_expr(ref, table, name), modify_default(table.name, name, ref.type, opts)
+      ])
     end
 
-    defp column_change(_table, {:modify, name, type, opts}) do
-      assemble(["ALTER COLUMN", quote_name(name), column_type(type, opts), column_options(opts)])
+    defp column_change(table, {:modify, name, type, opts}) do
+      assemble(["ALTER COLUMN", quote_name(name), column_type(type, opts), column_options(name, type, opts), modify_default(table.name, name, type, opts)])
     end
 
     defp column_change(_table, {:remove, name}), do: "DROP COLUMN #{quote_name(name)}"
 
-    defp column_options(opts) do
-      default = Keyword.get(opts, :default)
+    defp modify_default(table, name, type, opts) do
+      case Keyword.fetch(opts, :default) do
+        {:ok, val} ->
+          "; IF (OBJECT_ID('DF_#{name}', 'D') IS NOT NULL) " <>
+          "BEGIN " <>
+          "ALTER TABLE #{quote_name(table)} DROP CONSTRAINT DF_#{name} " <>
+          "END; " <>
+          "ALTER TABLE #{quote_name(table)} ADD #{default_expr({:ok, val}, name, type)} FOR #{quote_name(name)}"
+        :error ->
+          "; IF (OBJECT_ID('DF_#{name}', 'D') IS NOT NULL) " <>
+          "BEGIN " <>
+          "ALTER TABLE #{quote_name(table)} DROP CONSTRAINT DF_#{name} " <>
+          "END"
+      end
+    end
+
+    defp column_options(name, type, opts) do
       null    = Keyword.get(opts, :null)
       pk      = Keyword.get(opts, :primary_key)
       if pk == true, do: null = false
-      [default_expr(default), null_expr(null), pk_expr(pk)]
+      [null_expr(null), pk_expr(pk)]
     end
 
     defp pk_expr(true), do: "PRIMARY KEY"
@@ -653,16 +700,25 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp null_expr(true), do: "NULL"
     defp null_expr(_), do: "NULL"
 
-    defp default_expr(nil),
-      do: nil
-    defp default_expr(boolean) when boolean == true or boolean == false,
-      do: "DEFAULT #{if boolean == true, do: 1, else: 0}"
-    defp default_expr(literal) when is_binary(literal),
-      do: "DEFAULT '#{escape_string(literal)}'"
-    defp default_expr(literal) when is_number(literal),
-      do: "DEFAULT #{literal}"
-    defp default_expr({:fragment, expr}),
-      do: "DEFAULT #{expr}"
+    defp default_expr(opts, name, type) when is_list(opts) do
+      default = Keyword.fetch(opts, :default)
+      default_expr(default, name, type)
+    end
+    defp default_expr({:ok, nil}, name, _type),
+      do: "CONSTRAINT DF_#{name} DEFAULT NULL"
+    defp default_expr({:ok, boolean}, name, _type) when boolean == true or boolean == false,
+      do: "CONSTRAINT DF_#{name} DEFAULT #{if boolean == true, do: 1, else: 0}"
+    defp default_expr({:ok, literal}, name, _type) when is_binary(literal),
+      do: "CONSTRAINT DF_#{name} DEFAULT N'#{escape_string(literal)}'"
+    defp default_expr({:ok, literal}, name, _type) when is_number(literal),
+      do: "CONSTRAINT DF_#{name} DEFAULT #{literal}"
+    defp default_expr({:ok, {:fragment, expr}}, name, _type),
+      do: "CONSTRAINT DF_#{name} DEFAULT #{expr}"
+    defp default_expr({:ok, expr}, _name, type),
+      do: raise(ArgumentError, "unknown default `#{inspect expr}` for type `#{inspect type}`. " <>
+                               ":default may be a string, number, boolean, or a fragment(...)")
+    defp default_expr(:error, _, _),
+      do: []
 
     defp index_expr(literal) when is_binary(literal),
       do: literal
@@ -713,7 +769,11 @@ if Code.ensure_loaded?(Tds.Connection) do
           reference_on_delete(ref.on_delete)
 
     defp constraint_expr(%Reference{} = ref, table, name),
-      do: "ADD CONSTRAINT #{reference_name(ref, table, name)} " <>
+      do: "; IF (OBJECT_ID('#{reference_name(ref, table, name)}', 'F') IS NOT NULL) " <>
+          "BEGIN " <>
+          "ALTER TABLE #{quote_name(table.name)} DROP CONSTRAINT #{reference_name(ref, table, name)} " <>
+          "END; " <>
+          "ALTER TABLE #{quote_name(table.name)} ADD CONSTRAINT #{reference_name(ref, table, name)} " <>
           "FOREIGN KEY (#{quote_name(name)}) " <>
           "REFERENCES #{quote_name(ref.table)}(#{quote_name(ref.column)})" <>
           reference_on_delete(ref.on_delete)
@@ -724,6 +784,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       do: quote_name(name)
 
     defp reference_column_type(:serial, _opts), do: "bigint"
+    defp reference_column_type(:integer, _opts), do: "bigint"
     defp reference_column_type(type, opts), do: column_type(type, opts)
 
     defp reference_on_delete(:nilify_all), do: " ON DELETE SET NULL"
@@ -754,7 +815,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       :binary.replace(value, "'", "''", [:global])
     end
 
-    defp ecto_to_db(:id),         do: "integer"
+    defp ecto_to_db(:id),         do: "bigint"
     defp ecto_to_db(:binary_id),  do: "uniqueidentifier"
     defp ecto_to_db(:string),     do: "nvarchar"
     defp ecto_to_db(:binary),     do: "varbinary"
