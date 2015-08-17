@@ -83,7 +83,8 @@ if Code.ensure_loaded?(Tds.Connection) do
       case :binary.split(message, "unique index ") do
         [_, quoted] ->
           case :binary.split(quoted, ". The") do
-            [quoted, _] -> [unique: strip_quotes(quoted)]
+            [quoted, _] ->
+              [unique: strip_quotes(quoted)]
             _ -> []
           end
         _ -> []
@@ -93,7 +94,8 @@ if Code.ensure_loaded?(Tds.Connection) do
       case :binary.split(message, "constraint ") do
         [_, quoted] ->
           case :binary.split(quoted, ". The") do
-            [quoted, _] -> [unique: strip_quotes(quoted)]
+            [quoted, _] ->
+              [foreign_key: strip_quotes(quoted)]
             _ -> []
           end
         _ -> []
