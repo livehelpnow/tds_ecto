@@ -4,9 +4,11 @@ MSSQL / TDS Adapter for Ecto
 
 ## Example
 ```elixir
-# In your config/config.exs file
-# by default it use port 1433, different port can be specified with `port:` 1434 option and
-# named instance with `instance:` "instance_name" option
+# In your config/config.exs file add MSSQL connection options
+# By default it use port 1433, different port can be specified with 
+# port: 1434
+# option and named instance with 
+# instance: "instance_name"
 config :my_app, Repo,
   database: "ecto_simple",
   username: "mssql",
