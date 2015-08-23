@@ -281,12 +281,21 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp join(%Query{joins: joins, lock: lock} = query, sources) do
       Enum.map_join(joins, " ", fn
         %JoinExpr{on: %QueryExpr{expr: expr}, qual: qual, ix: ix} ->
-          {table, name, _model} = elem(sources, ix)
+          {join, name, _model} = elem(sources, ix)
 
-          on   = expr(expr, sources, query)
           qual = join_qual(qual)
+          join =
+            case join do
+              table when is_binary(table) ->
+                table
+              {:fragment, _, _} ->
+                "(" <> expr(join, sources, query) <> ")"
+            end
 
-          "#{qual} JOIN #{table} AS #{name} " <> lock(lock) <> "ON " <> on
+          "#{qual} JOIN " <> join <> " AS #{name} " <> lock(lock) <> "ON " <> expr(expr, sources, query)
+          # qual = join_qual(qual)
+
+          # "#{qual} JOIN #{table} AS #{name} " <> lock(lock) <> "ON " <> on
       end)
     end
 
@@ -527,10 +536,15 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp create_names(prefix, sources, pos, limit) when pos < limit do
-      {table, model} = elem(sources, pos)
-      name = String.first(table) <> Integer.to_string(pos)
-      [{quote_table(prefix, table), name, model}|
-        create_names(prefix, sources, pos + 1, limit)]
+      current =
+        case elem(sources, pos) do
+          {table, model} ->
+            name = String.first(table) <> Integer.to_string(pos)
+            {quote_table(prefix, table), name, model}
+          {:fragment, _, _} = fragment ->
+            {fragment, "f" <> Integer.to_string(pos), nil}
+        end
+      [current|create_names(prefix, sources, pos + 1, limit)]
     end
 
     defp create_names(_prefix, _sources, pos, pos) do
