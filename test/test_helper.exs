@@ -75,16 +75,6 @@ end
 :erlang.system_flag :backtrace_depth, 50
 # Load support models and migration
 
-Code.require_file "../deps/ecto/integration_test/sql/lock.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/sql/migration.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/sql/escape.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/cases/repo.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/cases/type.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/cases/pool.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/cases/preload.exs", __DIR__
-Code.require_file "../deps/ecto/integration_test/cases/interval.exs", __DIR__
-
-
 # Load up the repository, start it, and run migrations
 _   = Ecto.Storage.down(TestRepo)
 :ok = Ecto.Storage.up(TestRepo)
