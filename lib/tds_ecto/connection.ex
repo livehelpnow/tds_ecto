@@ -80,25 +80,24 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     def to_constraints(%Tds.Error{mssql: %{number: 2601, msg_text: message}}) do
-      case :binary.split(message, "unique index ") do
-        [_, quoted] ->
-          case :binary.split(quoted, ". The") do
-            [quoted, _] ->
-              [unique: strip_quotes(quoted)]
-            _ -> []
-          end
-        _ -> []
+      # Might non match on non-English error messages
+      case Regex.run(~r/('.*?'|".*?").*('.*?'|".*?")/, message, capture: :all_but_first) do
+        [_, index] -> [unique: strip_quotes(index)]
+        _ -> [unique: "<unknown_unique_index>"]
+      end
+    end
+    def to_constraints(%Tds.Error{mssql: %{number: 2627, msg_text: message}}) do
+      # Might non match on non-English error messages
+      case Regex.run(~r/('.*?'|".*?")/, message, capture: :all_but_first) do
+        [index] -> [unique: strip_quotes(index)]
+        _ -> [unique: "<unknown_unique_constraint>"]
       end
     end
     def to_constraints(%Tds.Error{mssql: %{number: 547, msg_text: message}}) do
-      case :binary.split(message, "constraint ") do
-        [_, quoted] ->
-          case :binary.split(quoted, ". The") do
-            [quoted, _] ->
-              [foreign_key: strip_quotes(quoted)]
-            _ -> []
-          end
-        _ -> []
+      # Might non match on non-English error messages
+      case Regex.run(~r/('.*?'|".*?")/, message, capture: :all_but_first) do
+        [foreign_key] -> [unique: strip_quotes(foreign_key)]
+        _ -> [foreign_key: "<unknown_foreign_key>"]
       end
     end
     def to_constraints(%Tds.Error{}),
