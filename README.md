@@ -71,6 +71,15 @@ defmodule MyApp.Repo do
 end
 ```
 
+tds_ecto relies on pattern matching against error messages to extract constraint names.
+If your SQL server is not configured to English as its default language you may add an `after_connect` hook to your repo and set English as the language for Ecto connections.
+
+```elixir
+def after_connect(conn) do
+  Tds.Ecto.Connection.query(conn, "SET LANGUAGE English", [], [])
+end
+```
+
 For additional information on usage please see the documentation for [Ecto](http://hexdocs.pm/ecto).
 
 ## Data Type Mapping
