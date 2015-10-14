@@ -353,7 +353,11 @@ if Code.ensure_loaded?(Tds.Connection) do
       name <> " " <>
         Enum.map_join(query_exprs, " AND ", fn
           %QueryExpr{expr: expr} ->
-            "(" <> expr(expr, sources, query) <> ")"
+            case expr do
+              true -> "(1 = 1)"
+              false -> "(0 = 1)"
+              _ -> "(" <> expr(expr, sources, query) <> ")"
+            end  
         end)
     end
 
