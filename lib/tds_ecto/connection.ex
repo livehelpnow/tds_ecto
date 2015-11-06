@@ -430,6 +430,12 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr({fun, _, args}, sources, query) when is_atom(fun) and is_list(args) do
+      {modifier, args} =
+      case args do
+        [rest, :distinct] -> {"DISTINCT ", [rest]}
+        _ -> {"", args}
+      end
+
       case handle_call(fun, length(args)) do
         {:binary_op, op} ->
           [left, right] = args
@@ -438,7 +444,7 @@ if Code.ensure_loaded?(Tds.Connection) do
           <> op_to_binary(right, sources, query)
 
         {:fun, fun} ->
-          "#{fun}(" <> Enum.map_join(args, ", ", &expr(&1, sources, query)) <> ")"
+          "#{fun}(" <> modifier <> Enum.map_join(args, ", ", &expr(&1, sources, query)) <> ")"
       end
     end
 
