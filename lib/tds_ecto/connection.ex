@@ -356,7 +356,7 @@ if Code.ensure_loaded?(Tds.Connection) do
               true -> "(1 = 1)"
               false -> "(0 = 1)"
               _ -> "(" <> expr(expr, sources, query) <> ")"
-            end  
+            end
         end)
     end
 
@@ -578,51 +578,60 @@ if Code.ensure_loaded?(Tds.Connection) do
       prefix = if command == :create_if_not_exists, do: "IF NOT EXISTS (" <> ddl_exists(table) <> ") BEGIN ", else: ""
       postfix = if command == :create_if_not_exists, do: "END", else: ""
       prefix <>
-      "CREATE TABLE #{quote_name(table.name)} (#{column_definitions(table, columns)}" <>
+      "CREATE TABLE #{quote_table(table.prefix, table.name)} (#{column_definitions(table, columns)}" <>
       if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")" <>
       options <> postfix
     end
 
-    def execute_ddl({command, %Table{name: name} = table}, _repo) when command in @drops do
+    def execute_ddl({command, %Table{} = table}, _repo) when command in @drops do
       prefix = if command == :drop_if_exists, do: "IF EXISTS (" <> ddl_exists(table) <> ") BEGIN ", else: ""
       postfix = if command == :drop_if_exists, do: "END", else: ""
-      prefix <> "DROP TABLE #{quote_name(name)}" <> postfix
+      prefix <> "DROP TABLE #{quote_table(table.prefix, table.name)}" <> postfix
     end
 
-    def execute_ddl({:alter, %Table{}=table, changes}, _repo) do
+    def execute_ddl({:alter, %Table{} = table, changes}, _repo) do
       Enum.map_join(changes, "; ", fn(change) ->
-        "ALTER TABLE #{quote_name(table.name)} #{column_change(table, change)}"
+        "ALTER TABLE #{quote_table(table.prefix, table.name)} #{column_change(table, change)}"
       end)
     end
 
-    def execute_ddl({:rename, %Table{}=current_table, %Table{}=new_table}, _repo) do
-      "EXEC sp_rename '#{current_table.name}', '#{new_table.name}'"
+    def execute_ddl({:rename, %Table{} = current_table, %Table{} = new_table}, _repo) do
+      "EXEC sp_rename '" <> quote_table_n(current_table.prefix, current_table.name) <>
+      "', '" <> quote_table_n(new_table.prefix, new_table.name) <> "'"
     end
 
-    def execute_ddl({:rename, %Table{}=current_table, current_column, new_column}, _repo) do
-      "EXEC sp_rename '#{current_table.name}.#{current_column}', '#{new_column}', 'COLUMN'"
+    def execute_ddl({:rename, %Table{} = current_table, current_column, new_column}, _repo) do
+      "EXEC sp_rename '" <> quote_table_n(current_table.prefix, current_table.name) <> ".#{current_column}" <>
+      "', '#{new_column}', 'COLUMN'"
     end
 
-    def execute_ddl({command, %Index{}=index}, repo) when command in @creates do
+    def execute_ddl({command, %Index{} = index}, repo) when command in @creates do
+      filter_null =
+        case repo do
+          nil -> false
+          repo -> Keyword.get(repo.config, :filter_null_on_unique_indexes, false)
+        end
 
       filter =
-      if (repo.config[:filter_null_on_unique_indexes] == true and index.unique) do
-        " WHERE #{Enum.map_join(index.columns, " AND ", fn(column) -> "#{column} IS NOT NULL" end)}"
-      else
-        ""
-      end
+        if (filter_null and index.unique) do
+          " WHERE #{Enum.map_join(index.columns, " AND ", fn(column) -> "#{column} IS NOT NULL" end)}"
+        else
+          ""
+        end
       prefix = if command == :create_if_not_exists, do: "IF NOT EXISTS (" <> ddl_exists(index) <> ") BEGIN ", else: ""
       postfix = if command == :create_if_not_exists, do: "END", else: ""
       assemble([prefix, "CREATE#{if index.unique, do: " UNIQUE"} INDEX",
-                quote_name(index.name), " ON ", quote_name(index.table),
+                quote_name(index.name), " ON ", quote_table(index.prefix, index.table),
                 " (#{Enum.map_join(index.columns, ", ", &index_expr/1)})",
                 filter, postfix])
+      |> String.strip
     end
 
     def execute_ddl({command, %Index{}=index}, _repo) do
       prefix = if command == :drop_if_exists, do: "IF EXISTS (" <> ddl_exists(index) <> ") BEGIN", else: ""
       postfix = if command == :drop_if_exists, do: "END", else: ""
-      assemble([prefix, "DROP INDEX", quote_name(index.name), " ON ", quote_name(index.table), postfix])
+      assemble([prefix, "DROP INDEX", quote_name(index.name), " ON ", quote_table(index.prefix, index.table), postfix])
+      |> String.strip
     end
 
     def execute_ddl(default, _repo) when is_binary(default), do: default
@@ -806,6 +815,13 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp reference_on_delete(_), do: ""
 
     ## Helpers
+
+    defp quote_table_n(nil, name),
+      do: to_string(name)
+
+    defp quote_table_n(prefix, name),
+      do: to_string(prefix) <> "." <> to_string(name)
+
     defp quote_table(nil, name),
       do: quote_name(name)
 

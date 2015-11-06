@@ -481,6 +481,21 @@ defmodule Tds.Ecto.TdsTest do
            ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [title] nvarchar(255) NULL, [created_at] datetime2 NULL)|
   end
 
+  test "create table with prefix" do
+    create = {:create, table(:posts, prefix: :foo),
+               [{:add, :name, :string, [default: "Untitled", size: 20, null: false]},
+                {:add, :price, :numeric, [precision: 8, scale: 2, default: {:fragment, "expr"}]},
+                {:add, :on_hand, :integer, [default: 0, null: true]},
+                {:add, :is_active, :boolean, [default: true]}]}
+
+    assert SQL.execute_ddl(create) == """
+    CREATE TABLE [foo].[posts] ([name] nvarchar(20) NOT NULL CONSTRAINT DF_name DEFAULT N'Untitled',
+    [price] numeric(8,2) NULL CONSTRAINT DF_price DEFAULT expr,
+    [on_hand] integer NULL CONSTRAINT DF_on_hand DEFAULT 0,
+    [is_active] bit NULL CONSTRAINT DF_is_active DEFAULT 1)
+    """ |> remove_newlines
+  end
+
   test "create table with reference" do
     create = {:create, table(:posts),
                [{:add, :id, :serial, [primary_key: true]},
@@ -544,6 +559,11 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.execute_ddl(drop) == ~s|DROP TABLE [posts]|
   end
 
+  test "drop table with prefixes" do
+    drop = {:drop, table(:posts, prefix: :foo)}
+    assert SQL.execute_ddl(drop) == ~s|DROP TABLE [foo].[posts]|
+  end
+
   test "alter table" do
     alter = {:alter, table(:posts),
                [{:add, :title, :string, [default: "Untitled", size: 100, null: false]},
@@ -563,6 +583,44 @@ defmodule Tds.Ecto.TdsTest do
     ALTER TABLE [posts] DROP CONSTRAINT DF_price
     END;
     ALTER TABLE [posts] DROP COLUMN [summary]
+    """ |> remove_newlines
+  end
+
+  test "alter table with prefix" do
+    alter = {:alter, table(:posts, prefix: :foo),
+               [{:add, :title, :string, [default: "Untitled", size: 100, null: false]},
+                {:add, :author_id, references(:author), []},
+                {:modify, :price, :numeric, [precision: 8, scale: 2, null: true]},
+                {:modify, :cost, :integer, [null: false, default: nil]},
+                {:modify, :permalink_id, references(:permalinks, prefix: :foo), null: false},
+                {:remove, :summary}]}
+
+    assert SQL.execute_ddl(alter) == """
+    ALTER TABLE [foo].[posts] ADD [title] nvarchar(100) NOT NULL ;
+    IF (OBJECT_ID('DF_title', 'D') IS NOT NULL)
+    BEGIN ALTER TABLE [posts]
+    DROP CONSTRAINT DF_title END;
+    ALTER TABLE [posts] ADD CONSTRAINT DF_title DEFAULT N'Untitled' FOR [title];
+    ALTER TABLE [foo].[posts] ADD [author_id] bigint NULL
+    CONSTRAINT [posts_author_id_fkey] FOREIGN KEY (author_id)
+    REFERENCES [author]([id]) ;
+    IF (OBJECT_ID('DF_author_id', 'D') IS NOT NULL)
+    BEGIN ALTER TABLE [posts] DROP CONSTRAINT DF_author_id END;
+    ALTER TABLE [foo].[posts] ALTER COLUMN [price] numeric(8,2) NULL ;
+    IF (OBJECT_ID('DF_price', 'D') IS NOT NULL)
+    BEGIN ALTER TABLE [posts] DROP CONSTRAINT DF_price END;
+    ALTER TABLE [foo].[posts] ALTER COLUMN [cost] integer NOT NULL ;
+    IF (OBJECT_ID('DF_cost', 'D') IS NOT NULL)
+    BEGIN ALTER TABLE [posts] DROP CONSTRAINT DF_cost END;
+    ALTER TABLE [posts] ADD CONSTRAINT DF_cost DEFAULT NULL FOR [cost];
+    ALTER TABLE [foo].[posts] ALTER COLUMN [permalink_id] bigint NOT NULL ;
+    IF (OBJECT_ID('[posts_permalink_id_fkey]', 'F') IS NOT NULL) BEGIN
+    ALTER TABLE [posts] DROP CONSTRAINT [posts_permalink_id_fkey] END;
+    ALTER TABLE [posts] ADD CONSTRAINT [posts_permalink_id_fkey] FOREIGN KEY ([permalink_id])
+    REFERENCES [permalinks]([id]) ;
+    IF (OBJECT_ID('DF_permalink_id', 'D') IS NOT NULL)
+    BEGIN ALTER TABLE [posts] DROP CONSTRAINT DF_permalink_id END;
+    ALTER TABLE [foo].[posts] DROP COLUMN [summary]
     """ |> remove_newlines
   end
 
@@ -611,9 +669,19 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'posts', 'new_posts'|
   end
 
+  test "rename table with prefix" do
+    rename = {:rename, table(:posts, prefix: :foo), table(:new_posts, prefix: :foo)}
+    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'foo.posts', 'foo.new_posts'|
+  end
+
   test "rename column" do
     rename = {:rename, table(:posts), :given_name, :first_name}
     assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'posts.given_name', 'first_name', 'COLUMN'|
+  end
+
+  test "rename column in table with prefixes" do
+    rename = {:rename, table(:posts, prefix: :foo), :given_name, :first_name}
+    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'foo.posts.given_name', 'first_name', 'COLUMN'|
   end
 
   # test "create index" do
@@ -625,6 +693,12 @@ defmodule Tds.Ecto.TdsTest do
   #   assert SQL.execute_ddl(create) ==
   #          ~s|CREATE INDEX [posts$main] ON [posts] ([lower(permalink)])|
   # end
+
+  test "create index with prefix" do
+    create = {:create, index(:posts, [:category_id, :permalink], prefix: :foo)}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE INDEX [posts_category_id_permalink_index]  ON  [foo].[posts]  (category_id, permalink)|
+  end
 
   # test "create index asserting concurrency" do
   #   create = {:create, index(:posts, ["lower(permalink)"], name: "posts$main", concurrently: true)}
@@ -649,14 +723,20 @@ defmodule Tds.Ecto.TdsTest do
   #   assert SQL.execute_ddl(drop) == ~s|DROP INDEX `posts$main` ON `posts`|
   # end
 
+  test "drop index with prefix" do
+    drop = {:drop, index(:posts, [:id], name: "posts_category_id_permalink_index", prefix: :foo)}
+    assert SQL.execute_ddl(drop) == ~s|DROP INDEX [posts_category_id_permalink_index]  ON  [foo].[posts]|
+  end
+
   # test "drop index asserting concurrency" do
   #   drop = {:drop, index(:posts, [:id], name: "posts$main", concurrentlyrently: true)}
   #   assert SQL.execute_ddl(drop) == ~s|DROP INDEX `posts$main` ON `posts` LOCK=NONE|
   # end
+
+
 
   defp remove_newlines(string) do
     string |> String.strip |> String.replace("\n", " ")
   end
 
 end
-
