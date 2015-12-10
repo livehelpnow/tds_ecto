@@ -220,8 +220,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     binary_ops =
       [==: "=", !=: "!=", <=: "<=", >=: ">=", <:  "<", >:  ">",
-       and: "AND", or: "OR",
-       ilike: "ILIKE", like: "LIKE"]
+       and: "AND", or: "OR", ilike: "LIKE", like: "LIKE"]
 
     @binary_ops Keyword.keys(binary_ops)
 
