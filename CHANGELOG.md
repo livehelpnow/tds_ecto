@@ -1,3 +1,11 @@
+# v1.0.2
+* Bug fixes
+  * Fixes "table.prefix does not exist" (Reverts migration code to v1.0.0)
+
+# v1.0.1
+* Bug fixes
+  * ILIKE is now correctly mapped
+
 # v1.0.0
 * Enhancements
   * Updated to ecto 1.0.0
