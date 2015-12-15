@@ -101,6 +101,7 @@ defmodule Tds.Ecto do
 
   def execute_ddl(repo, definition, opts) do
     sql = @conn.execute_ddl(definition, repo)
+    IO.puts(sql)
     Ecto.Adapters.SQL.query(repo, sql, [], opts)
     :ok
   end

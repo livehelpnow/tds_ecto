@@ -1,3 +1,8 @@
+# v1.0.3
+* Bug fixes
+  * Rollbacks for columns with defaults is now working.
+  * Forwards for columns with defaults is now working.
+
 # v1.0.2
 * Bug fixes
   * Fixes "table.prefix does not exist" (Reverts migration code to v1.0.0)

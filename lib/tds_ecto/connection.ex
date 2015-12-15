@@ -651,12 +651,12 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp column_change(table, {:add, name, %Reference{} = ref, opts}) do
       assemble([
         "ADD", quote_name(name), reference_column_type(ref.type, opts), column_options(name, ref.type, opts),
-        reference_expr(ref, table, name), modify_default(table.name, name, ref.type, opts)
+        reference_expr(ref, table, name)
       ])
     end
 
-    defp column_change(table, {:add, name, type, opts}) do
-      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(name, type, opts), modify_default(table.name, name, type, opts)])
+    defp column_change(_, {:add, name, type, opts}) do
+      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(name, type, opts)])
     end
 
     defp column_change(table, {:modify, name, %Reference{} = ref, opts}) do
@@ -670,7 +670,11 @@ if Code.ensure_loaded?(Tds.Connection) do
       assemble(["ALTER COLUMN", quote_name(name), column_type(type, opts), column_options(name, type, opts), modify_default(table.name, name, type, opts)])
     end
 
-    defp column_change(_table, {:remove, name}), do: "DROP COLUMN #{quote_name(name)}"
+    defp column_change(table, {:remove, name}) do
+      "IF (OBJECT_ID('DF_#{name}', 'D') IS NOT NULL) " <>
+        "BEGIN ALTER TABLE #{quote_name(table.name)} DROP CONSTRAINT DF_#{name} " <>
+      "END; DROP COLUMN #{quote_name(name)}"
+    end
 
     defp modify_default(table, name, type, opts) do
       case Keyword.fetch(opts, :default) do
@@ -692,7 +696,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       null    = Keyword.get(opts, :null)
       pk      = Keyword.get(opts, :primary_key)
       if pk == true, do: null = false
-      [null_expr(null), pk_expr(pk)]
+      [null_expr(null), pk_expr(pk), default_expr(opts, name, type)]
     end
 
     defp pk_expr(true), do: "PRIMARY KEY"
@@ -717,8 +721,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       default = Keyword.fetch(opts, :default)
       default_expr(default, name, type)
     end
-    defp default_expr({:ok, nil}, name, _type),
-      do: "CONSTRAINT DF_#{name} DEFAULT NULL"
+    defp default_expr({:ok, nil}, _, _), do: ""
     defp default_expr({:ok, boolean}, name, _type) when boolean == true or boolean == false,
       do: "CONSTRAINT DF_#{name} DEFAULT #{if boolean == true, do: 1, else: 0}"
     defp default_expr({:ok, literal}, name, _type) when is_binary(literal),
