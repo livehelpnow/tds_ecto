@@ -1,3 +1,7 @@
+# v1.0.2
+* Bug Fixes
+  * fixed limit
+
 # v1.0.1
 * Bug Fixes
   * Allow prefixes in DDL
