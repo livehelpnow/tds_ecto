@@ -335,17 +335,20 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp limit(%Query{limit: nil}, _sources), do: ""
-    defp limit(%Query{limit: %QueryExpr{expr: expr}, offset: offset} = query, sources) when offset != nil do
-      "TOP(" <> expr(expr, sources, query) <> ") "
+    defp limit(%Query{limit: %QueryExpr{expr: expr}} = query, sources) do
+      case Map.get(query, :offset) do
+        nil -> "TOP(" <> expr(expr, sources, query) <> ") "
+        _ -> ""
+      end
+
     end
-    defp limit(%Query{}, _sources), do: ""
 
     defp offset(%Query{offset: nil}, _sources), do: nil
-    defp offset(%Query{offset: %Ecto.Query.QueryExpr{expr: expr}, limit: %QueryExpr{expr: expr}} = query, sources) do
-      "OFFSET " <> expr(expr, sources, query) <> " ROW " <>
-      "FETCH NEXT " <> expr(expr, sources, query) <> " ROWS ONLY"
+    defp offset(%Query{offset: %QueryExpr{expr: offset_expr}, limit: %QueryExpr{expr: limit_expr}} = query, sources) do
+      "OFFSET " <> expr(offset_expr, sources, query) <> " ROW " <>
+      "FETCH NEXT " <> expr(limit_expr, sources, query) <> " ROWS ONLY"
     end
-    defp offset(%Query{offset: _, limit: nil} = query, _sources) do
+    defp offset(%Query{offset: _} = query, _sources) do
       error!(query, "You must provide a limit while using an offset")
     end
 
