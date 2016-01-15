@@ -1,3 +1,10 @@
+# v1.0.1
+* Bug Fixes
+  * Allow prefixes in DDL
+  * Fixed issue when using `count` and `distinct`
+  * Better constraint matching
+  * Fixed boolean literals in where clauses
+
 # v1.0.0
 * Enhancements
   * Updated to ecto 1.0.0
