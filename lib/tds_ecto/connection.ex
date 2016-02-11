@@ -335,12 +335,20 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp limit(%Query{limit: nil}, _sources), do: ""
     defp limit(%Query{limit: %QueryExpr{expr: expr}} = query, sources) do
-      "TOP(" <> expr(expr, sources, query) <> ") "
+      case Map.get(query, :offset) do
+        nil -> "TOP(" <> expr(expr, sources, query) <> ") "
+        _ -> ""
+      end
+
     end
 
     defp offset(%Query{offset: nil}, _sources), do: nil
-    defp offset(%Query{offset: %Ecto.Query.QueryExpr{expr: expr}} = query, sources) do
-      "OFFSET " <> expr(expr, sources, query) <> " ROW"
+    defp offset(%Query{offset: %QueryExpr{expr: offset_expr}, limit: %QueryExpr{expr: limit_expr}} = query, sources) do
+      "OFFSET " <> expr(offset_expr, sources, query) <> " ROW " <>
+      "FETCH NEXT " <> expr(limit_expr, sources, query) <> " ROWS ONLY"
+    end
+    defp offset(%Query{offset: _} = query, _sources) do
+      error!(query, "You must provide a limit while using an offset")
     end
 
     defp lock(nil), do: ""
@@ -692,7 +700,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       end
     end
 
-    defp column_options(name, type, opts) do
+    defp column_options(_name, _type, opts) do
       null    = Keyword.get(opts, :null)
       pk      = Keyword.get(opts, :primary_key)
       if pk == true, do: null = false

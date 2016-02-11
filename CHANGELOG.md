@@ -1,15 +1,21 @@
+# v1.0.4 (v1.0.2)
+* Integrated upstream changes
+
 # v1.0.3
 * Bug fixes
   * Rollbacks for columns with defaults is now working.
   * Forwards for columns with defaults is now working.
 
 # v1.0.2
-* Bug fixes
-  * Fixes "table.prefix does not exist" (Reverts migration code to v1.0.0)
+* Bug Fixes
+  * fixed limit
 
 # v1.0.1
-* Bug fixes
-  * ILIKE is now correctly mapped
+* Bug Fixes
+  * Allow prefixes in DDL
+  * Fixed issue when using `count` and `distinct`
+  * Better constraint matching
+  * Fixed boolean literals in where clauses
 
 # v1.0.0
 * Enhancements

@@ -4,7 +4,7 @@ defmodule TDS.Ecto.Mixfile do
   def project do
     [
       app: :tds_ecto,
-      version: "1.0.3",
+      version: "1.0.2",
       elixir: "~> 1.0",
       deps: deps,
       description: description,
@@ -22,8 +22,8 @@ defmodule TDS.Ecto.Mixfile do
   defp deps do
     [
       {:ecto, "~> 1.0.0"},
-      {:tds, "~> 0.5.1"},
-      {:poison, "~> 1.0"}
+      {:tds, "~> 0.5.4"},
+      {:poison, only: :test}
     ]
   end
 
@@ -34,7 +34,7 @@ defmodule TDS.Ecto.Mixfile do
   end
 
   defp package do
-    [contributors: ["Justin Schneck"],
+    [maintainers: ["Justin Schneck"],
      licenses: ["Apache 2.0"],
      links: %{"Github" => "https://github.com/livehelpnow/tds_ecto"}]
   end
