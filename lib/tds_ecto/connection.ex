@@ -704,7 +704,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       null    = Keyword.get(opts, :null)
       pk      = Keyword.get(opts, :primary_key)
       if pk == true, do: null = false
-      [null_expr(null), pk_expr(pk), default_expr(opts, name, type)]
+      [null_expr(null), pk_expr(pk)]
     end
 
     defp pk_expr(true), do: "PRIMARY KEY"
