@@ -107,8 +107,9 @@ defmodule Tds.Ecto do
 
   defp run_with_sql_conn(opts, sql_command) do
     host = opts[:hostname] || System.get_env("MSSQLHOST") || "localhost"
+    database = opts[:database] || "master"
     opts = opts
-      |> Keyword.put(:database, "Cielo_In_App")
+      |> Keyword.put(:database, database)
       |> Keyword.put(:hostname, host)
     case Tds.Ecto.Connection.connect(opts) do
       {:ok, pid} ->
