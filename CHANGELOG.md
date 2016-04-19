@@ -1,3 +1,7 @@
+# v1.0.6 (v1.0.2)
+* Integrated upstream changes
+* Add default expression to alter tables too.
+
 # v1.0.4 (v1.0.2)
 * Integrated upstream changes
 
