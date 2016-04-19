@@ -659,12 +659,12 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp column_change(table, {:add, name, %Reference{} = ref, opts}) do
       assemble([
         "ADD", quote_name(name), reference_column_type(ref.type, opts), column_options(name, ref.type, opts),
-        reference_expr(ref, table, name)
+        default_expr(opts, name, ref.type), reference_expr(ref, table, name)
       ])
     end
 
     defp column_change(_, {:add, name, type, opts}) do
-      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(name, type, opts)])
+      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(name, type, opts), default_expr(opts, name, type)])
     end
 
     defp column_change(table, {:modify, name, %Reference{} = ref, opts}) do
