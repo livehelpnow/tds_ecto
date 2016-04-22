@@ -220,8 +220,7 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     binary_ops =
       [==: "=", !=: "!=", <=: "<=", >=: ">=", <:  "<", >:  ">",
-       and: "AND", or: "OR",
-       ilike: "ILIKE", like: "LIKE"]
+       and: "AND", or: "OR", ilike: "LIKE", like: "LIKE"]
 
     @binary_ops Keyword.keys(binary_ops)
 
@@ -586,60 +585,51 @@ if Code.ensure_loaded?(Tds.Connection) do
       prefix = if command == :create_if_not_exists, do: "IF NOT EXISTS (" <> ddl_exists(table) <> ") BEGIN ", else: ""
       postfix = if command == :create_if_not_exists, do: "END", else: ""
       prefix <>
-      "CREATE TABLE #{quote_table(table.prefix, table.name)} (#{column_definitions(table, columns)}" <>
+      "CREATE TABLE #{quote_name(table.name)} (#{column_definitions(table, columns)}" <>
       if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")" <>
       options <> postfix
     end
 
-    def execute_ddl({command, %Table{} = table}, _repo) when command in @drops do
+    def execute_ddl({command, %Table{name: name} = table}, _repo) when command in @drops do
       prefix = if command == :drop_if_exists, do: "IF EXISTS (" <> ddl_exists(table) <> ") BEGIN ", else: ""
       postfix = if command == :drop_if_exists, do: "END", else: ""
-      prefix <> "DROP TABLE #{quote_table(table.prefix, table.name)}" <> postfix
+      prefix <> "DROP TABLE #{quote_name(name)}" <> postfix
     end
 
-    def execute_ddl({:alter, %Table{} = table, changes}, _repo) do
+    def execute_ddl({:alter, %Table{}=table, changes}, _repo) do
       Enum.map_join(changes, "; ", fn(change) ->
-        "ALTER TABLE #{quote_table(table.prefix, table.name)} #{column_change(table, change)}"
+        "ALTER TABLE #{quote_name(table.name)} #{column_change(table, change)}"
       end)
     end
 
-    def execute_ddl({:rename, %Table{} = current_table, %Table{} = new_table}, _repo) do
-      "EXEC sp_rename '" <> quote_table_n(current_table.prefix, current_table.name) <>
-      "', '" <> quote_table_n(new_table.prefix, new_table.name) <> "'"
+    def execute_ddl({:rename, %Table{}=current_table, %Table{}=new_table}, _repo) do
+      "EXEC sp_rename '#{current_table.name}', '#{new_table.name}'"
     end
 
-    def execute_ddl({:rename, %Table{} = current_table, current_column, new_column}, _repo) do
-      "EXEC sp_rename '" <> quote_table_n(current_table.prefix, current_table.name) <> ".#{current_column}" <>
-      "', '#{new_column}', 'COLUMN'"
+    def execute_ddl({:rename, %Table{}=current_table, current_column, new_column}, _repo) do
+      "EXEC sp_rename '#{current_table.name}.#{current_column}', '#{new_column}', 'COLUMN'"
     end
 
-    def execute_ddl({command, %Index{} = index}, repo) when command in @creates do
-      filter_null =
-        case repo do
-          nil -> false
-          repo -> Keyword.get(repo.config, :filter_null_on_unique_indexes, false)
-        end
+    def execute_ddl({command, %Index{}=index}, repo) when command in @creates do
 
       filter =
-        if (filter_null and index.unique) do
-          " WHERE #{Enum.map_join(index.columns, " AND ", fn(column) -> "#{column} IS NOT NULL" end)}"
-        else
-          ""
-        end
+      if (repo.config[:filter_null_on_unique_indexes] == true and index.unique) do
+        " WHERE #{Enum.map_join(index.columns, " AND ", fn(column) -> "#{column} IS NOT NULL" end)}"
+      else
+        ""
+      end
       prefix = if command == :create_if_not_exists, do: "IF NOT EXISTS (" <> ddl_exists(index) <> ") BEGIN ", else: ""
       postfix = if command == :create_if_not_exists, do: "END", else: ""
       assemble([prefix, "CREATE#{if index.unique, do: " UNIQUE"} INDEX",
-                quote_name(index.name), " ON ", quote_table(index.prefix, index.table),
+                quote_name(index.name), " ON ", quote_name(index.table),
                 " (#{Enum.map_join(index.columns, ", ", &index_expr/1)})",
                 filter, postfix])
-      |> String.strip
     end
 
     def execute_ddl({command, %Index{}=index}, _repo) do
       prefix = if command == :drop_if_exists, do: "IF EXISTS (" <> ddl_exists(index) <> ") BEGIN", else: ""
       postfix = if command == :drop_if_exists, do: "END", else: ""
-      assemble([prefix, "DROP INDEX", quote_name(index.name), " ON ", quote_table(index.prefix, index.table), postfix])
-      |> String.strip
+      assemble([prefix, "DROP INDEX", quote_name(index.name), " ON ", quote_name(index.table), postfix])
     end
 
     def execute_ddl(default, _repo) when is_binary(default), do: default
@@ -669,12 +659,12 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp column_change(table, {:add, name, %Reference{} = ref, opts}) do
       assemble([
         "ADD", quote_name(name), reference_column_type(ref.type, opts), column_options(name, ref.type, opts),
-        reference_expr(ref, table, name), modify_default(table.name, name, ref.type, opts)
+        default_expr(opts, name, ref.type), reference_expr(ref, table, name)
       ])
     end
 
-    defp column_change(table, {:add, name, type, opts}) do
-      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(name, type, opts), modify_default(table.name, name, type, opts)])
+    defp column_change(_, {:add, name, type, opts}) do
+      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(name, type, opts), default_expr(opts, name, type)])
     end
 
     defp column_change(table, {:modify, name, %Reference{} = ref, opts}) do
@@ -688,7 +678,11 @@ if Code.ensure_loaded?(Tds.Connection) do
       assemble(["ALTER COLUMN", quote_name(name), column_type(type, opts), column_options(name, type, opts), modify_default(table.name, name, type, opts)])
     end
 
-    defp column_change(_table, {:remove, name}), do: "DROP COLUMN #{quote_name(name)}"
+    defp column_change(table, {:remove, name}) do
+      "IF (OBJECT_ID('DF_#{name}', 'D') IS NOT NULL) " <>
+        "BEGIN ALTER TABLE #{quote_name(table.name)} DROP CONSTRAINT DF_#{name} " <>
+      "END; DROP COLUMN #{quote_name(name)}"
+    end
 
     defp modify_default(table, name, type, opts) do
       case Keyword.fetch(opts, :default) do
@@ -735,8 +729,7 @@ if Code.ensure_loaded?(Tds.Connection) do
       default = Keyword.fetch(opts, :default)
       default_expr(default, name, type)
     end
-    defp default_expr({:ok, nil}, name, _type),
-      do: "CONSTRAINT DF_#{name} DEFAULT NULL"
+    defp default_expr({:ok, nil}, _, _), do: ""
     defp default_expr({:ok, boolean}, name, _type) when boolean == true or boolean == false,
       do: "CONSTRAINT DF_#{name} DEFAULT #{if boolean == true, do: 1, else: 0}"
     defp default_expr({:ok, literal}, name, _type) when is_binary(literal),
@@ -823,13 +816,6 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp reference_on_delete(_), do: ""
 
     ## Helpers
-
-    defp quote_table_n(nil, name),
-      do: to_string(name)
-
-    defp quote_table_n(prefix, name),
-      do: to_string(prefix) <> "." <> to_string(name)
-
     defp quote_table(nil, name),
       do: quote_name(name)
 
