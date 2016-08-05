@@ -22,9 +22,8 @@ if Code.ensure_loaded?(Tds) do
 
     def prepare_execute(pid, _name, statement, params, opts \\ []) do
       query = %Query{statement: statement}
-      opts = Keyword.put_new(opts, :parameters, params)
-      {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
 
+      {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
         {value, type} = case param do
           %Ecto.Query.Tagged{value: value, type: :boolean} ->
               value = if value == true, do: 1, else: 0
@@ -56,20 +55,49 @@ if Code.ensure_loaded?(Tds) do
         end
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
       end
-      IO.puts "#{inspect statement}"
-      IO.puts "#{inspect params}"
-      IO.puts "#{inspect opts}"
 
       opts = Keyword.put(opts, :parameters, params)
-
-      IO.puts "WTF OPTS: #{inspect opts}"
 
       DBConnection.prepare_execute(pid, query, params, opts)
     end
 
-    def execute(pid, sql, params, opts) when is_binary(sql) do
-      query = %Query{statement: sql}
-      opts = Keyword.put_new(opts, :parameters, params)
+    def execute(pid, statement, params, opts) when is_binary(statement) do
+      query = %Query{statement: statement}
+
+      {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
+        {value, type} = case param do
+          %Ecto.Query.Tagged{value: value, type: :boolean} ->
+              value = if value == true, do: 1, else: 0
+              {value, :boolean}
+          %Ecto.Query.Tagged{value: value, type: :binary} ->
+            type = if value == "", do: :string, else: :binary
+            {value, type}
+          %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} ->
+
+            cond do
+              us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
+              true -> {{{y,m,d},{hh,mm,ss}}, :datetime}
+            end
+          %Ecto.Query.Tagged{value: value, type: type} when type in [:binary_id, :uuid] ->
+            cond do
+              value == nil -> {nil, :binary}
+              String.length(value) > 16 ->
+                {:ok, value} = Ecto.UUID.cast(value)
+                {value, :string}
+              true ->
+                {uuid(value), :binary}
+            end
+          %Ecto.Query.Tagged{value: value, type: type} ->
+            {value, type}
+          %{__struct__: _} = value -> {value, nil}
+          %{} = value -> {json_library.encode!(value), :string}
+          value ->
+            param(value)
+        end
+        {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
+      end
+
+      opts = Keyword.put(opts, :parameters, params)
 
 			case DBConnection.prepare_execute(pid, query, params, opts) do
         {:ok, _, query} -> {:ok, query}
@@ -77,7 +105,47 @@ if Code.ensure_loaded?(Tds) do
       end
     end
     def execute(pid, %{} = query, params, opts) do
-			DBConnection.execute(pid, query, params, opts)
+
+      opts = Keyword.put_new(opts, :parameters, params)
+      {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
+        {value, type} = case param do
+          %Ecto.Query.Tagged{value: value, type: :boolean} ->
+              value = if value == true, do: 1, else: 0
+              {value, :boolean}
+          %Ecto.Query.Tagged{value: value, type: :binary} ->
+            type = if value == "", do: :string, else: :binary
+            {value, type}
+          %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} ->
+
+            cond do
+              us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
+              true -> {{{y,m,d},{hh,mm,ss}}, :datetime}
+            end
+          %Ecto.Query.Tagged{value: value, type: type} when type in [:binary_id, :uuid] ->
+            cond do
+              value == nil -> {nil, :binary}
+              String.length(value) > 16 ->
+                {:ok, value} = Ecto.UUID.cast(value)
+                {value, :string}
+              true ->
+                {uuid(value), :binary}
+            end
+          %Ecto.Query.Tagged{value: value, type: type} ->
+            {value, type}
+          %{__struct__: _} = value -> {value, nil}
+          %{} = value -> {json_library.encode!(value), :string}
+          value ->
+            param(value)
+        end
+        {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
+      end
+
+      opts = Keyword.put(opts, :parameters, params)
+
+			case DBConnection.prepare_execute(pid, query, params, opts) do
+        {:ok, _, query} -> {:ok, query}
+        {:error, _} = err -> err
+      end
     end
 
 
@@ -115,8 +183,7 @@ if Code.ensure_loaded?(Tds) do
         end
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
       end
-      IO.puts "#{inspect sql}"
-      IO.puts "#{inspect params}"
+
       case Tds.query(conn, sql, params, opts) do
         {:ok, %Tds.Result{} = result} ->
           {:ok, Map.from_struct(result)}
@@ -201,27 +268,17 @@ if Code.ensure_loaded?(Tds) do
     alias Ecto.Query.JoinExpr
 
     def all(query) do
-      IO.puts "QUERY: #{inspect query}"
       sources = create_names(query)
-      IO.puts "SOURCES: #{inspect sources}"
 
       from     = from(sources, query.lock)
-      IO.puts "FROM: #{inspect from}"
       select   = select(query, sources)
-      IO.puts "SELECT: #{inspect select}"
       join     = join(query, sources)
-      IO.puts "JOIN: #{inspect join}"
       where    = where(query, sources)
-      IO.puts "WHERE: #{inspect where}"
       group_by = group_by(query, sources)
-      IO.puts "GROUP_BY: #{inspect group_by}"
       having   = having(query, sources)
-      IO.puts "HAVING: #{inspect having}"
       order_by = order_by(query, sources)
-      IO.puts "ORDER_BY: #{inspect order_by}"
 
       offset   = offset(query, sources)
-      IO.puts "OFFSET: #{inspect offset}"
 
       if (query.offset != nil and query.order_bys == []), do: error!(query, "ORDER BY is mandatory to use OFFSET")
       assemble([select, from, join, where, group_by, having, order_by, offset])
@@ -272,10 +329,26 @@ if Code.ensure_loaded?(Tds) do
       else
         "(" <> Enum.map_join(header, ", ", &quote_name/1) <> ")" <>
           " " <> returning(returning, "INSERTED") <>
-          "VALUES (" <> Enum.map_join(1..length(header), ", ", &"@#{&1}") <> ")"
+          "VALUES " <> insert_all(rows, 1, "")
       end
       "INSERT INTO #{quote_table(prefix, table)} " <> values
     end
+
+		defp insert_all([row|rows], counter, acc) do
+      {counter, row} = insert_each(row, counter, "")
+      insert_all(rows, counter, acc <> ",(" <> row <> ")")
+    end
+    defp insert_all([], _counter, "," <> acc) do
+      acc
+    end
+
+    defp insert_each([nil|t], counter, acc),
+      do: insert_each(t, counter, acc <> ",DEFAULT")
+    defp insert_each([_|t], counter, acc),
+      do: insert_each(t, counter + 1, acc <> ", @" <> Integer.to_string(counter))
+    defp insert_each([], counter, "," <> acc),
+      do: {counter, acc}
+
 
     def update(prefix, table, fields, filters, returning) do
       {fields, count} = Enum.map_reduce fields, 1, fn field, acc ->
@@ -328,7 +401,6 @@ if Code.ensure_loaded?(Tds) do
       expr(val, sources, query)
     end
     defp select(fields, sources, query) do
-      IO.puts "fields: #{inspect fields}"
       Enum.map_join(fields, ", ", &expr(&1, sources, query))
     end
 
@@ -528,17 +600,12 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp expr({fun, _, args}, sources, query) when is_atom(fun) and is_list(args) do
-      IO.puts "IDIOT"
-      IO.puts "fun: #{inspect fun}"
-
       {modifier, args} =
       case args do
         [rest, :distinct] -> {"DISTINCT ", [rest]}
         _ -> {"", args}
       end
 
-      IO.puts "fun: #{inspect fun}"
-      IO.puts "len args: #{length(args)}"
       case handle_call(fun, length(args)) do
         {:binary_op, op} ->
           [left, right] = args
@@ -547,11 +614,6 @@ if Code.ensure_loaded?(Tds) do
           <> op_to_binary(right, sources, query)
 
         {:fun, fun} ->
-          IO.puts "fun: #{inspect fun}"
-          IO.puts "modifier: #{inspect modifier}"
-          IO.puts "args: #{inspect args}"
-          IO.puts "sources: #{inspect sources}"
-          IO.puts "query: #{inspect query}"
           "#{fun}(" <> modifier <> Enum.map_join(args, ", ", &expr(&1, sources, query)) <> ")"
       end
     end
