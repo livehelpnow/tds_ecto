@@ -21,8 +21,8 @@ defmodule TDS.Ecto.Mixfile do
 
   defp deps do
     [
-      {:ecto, "~> 1.0.0"},
-      {:tds, "~> 0.5.4"},
+      {:ecto, "~> 2.0.0"},
+      {:tds, path: "../tds"},
       {:poison, only: :test}
     ]
   end

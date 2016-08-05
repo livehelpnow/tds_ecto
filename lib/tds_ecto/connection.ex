@@ -1,26 +1,85 @@
-if Code.ensure_loaded?(Tds.Connection) do
+if Code.ensure_loaded?(Tds) do
   defmodule Tds.Ecto.Connection do
     @moduledoc false
 
     @default_port System.get_env("MSSQLPORT") || 1433
 
-    @behaviour Ecto.Adapters.Connection
+    @behaviour Ecto.Adapters.SQL.Connection
     @behaviour Ecto.Adapters.SQL.Query
 
     def connect(opts) do
       opts = opts
         |> Keyword.put_new(:port, @default_port)
-      Tds.Connection.start_link(opts)
+      Tds.Protocol.connect(opts)
     end
 
-    def disconnect(conn) do
-      try do
-        Tds.Connection.stop(conn)
-      catch
-        :exit, {:noproc, _} -> :ok
-      end
-      :ok
+    def child_spec(opts) do
+      Tds.child_spec(opts)
     end
+
+    alias Tds.Query
+    alias Tds.Parameter
+
+    def prepare_execute(pid, _name, statement, params, opts \\ []) do
+      query = %Query{statement: statement}
+      opts = Keyword.put_new(opts, :parameters, params)
+      {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
+
+        {value, type} = case param do
+          %Ecto.Query.Tagged{value: value, type: :boolean} ->
+              value = if value == true, do: 1, else: 0
+              {value, :boolean}
+          %Ecto.Query.Tagged{value: value, type: :binary} ->
+            type = if value == "", do: :string, else: :binary
+            {value, type}
+          %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} ->
+
+            cond do
+              us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
+              true -> {{{y,m,d},{hh,mm,ss}}, :datetime}
+            end
+          %Ecto.Query.Tagged{value: value, type: type} when type in [:binary_id, :uuid] ->
+            cond do
+              value == nil -> {nil, :binary}
+              String.length(value) > 16 ->
+                {:ok, value} = Ecto.UUID.cast(value)
+                {value, :string}
+              true ->
+                {uuid(value), :binary}
+            end
+          %Ecto.Query.Tagged{value: value, type: type} ->
+            {value, type}
+          %{__struct__: _} = value -> {value, nil}
+          %{} = value -> {json_library.encode!(value), :string}
+          value ->
+            param(value)
+        end
+        {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
+      end
+      IO.puts "#{inspect statement}"
+      IO.puts "#{inspect params}"
+      IO.puts "#{inspect opts}"
+
+      opts = Keyword.put(opts, :parameters, params)
+
+      IO.puts "WTF OPTS: #{inspect opts}"
+
+      DBConnection.prepare_execute(pid, query, params, opts)
+    end
+
+    def execute(pid, sql, params, opts) when is_binary(sql) do
+      query = %Query{statement: sql}
+      opts = Keyword.put_new(opts, :parameters, params)
+
+			case DBConnection.prepare_execute(pid, query, params, opts) do
+        {:ok, _, query} -> {:ok, query}
+        {:error, _} = err -> err
+      end
+    end
+    def execute(pid, %{} = query, params, opts) do
+			DBConnection.execute(pid, query, params, opts)
+    end
+
 
     def query(conn, sql, params, opts) do
       {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
@@ -56,7 +115,9 @@ if Code.ensure_loaded?(Tds.Connection) do
         end
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
       end
-      case Tds.Connection.query(conn, sql, params, opts) do
+      IO.puts "#{inspect sql}"
+      IO.puts "#{inspect params}"
+      case Tds.query(conn, sql, params, opts) do
         {:ok, %Tds.Result{} = result} ->
           {:ok, Map.from_struct(result)}
         {:error, %Tds.Error{}} = err  -> err
@@ -140,17 +201,27 @@ if Code.ensure_loaded?(Tds.Connection) do
     alias Ecto.Query.JoinExpr
 
     def all(query) do
+      IO.puts "QUERY: #{inspect query}"
       sources = create_names(query)
+      IO.puts "SOURCES: #{inspect sources}"
 
       from     = from(sources, query.lock)
+      IO.puts "FROM: #{inspect from}"
       select   = select(query, sources)
+      IO.puts "SELECT: #{inspect select}"
       join     = join(query, sources)
+      IO.puts "JOIN: #{inspect join}"
       where    = where(query, sources)
+      IO.puts "WHERE: #{inspect where}"
       group_by = group_by(query, sources)
+      IO.puts "GROUP_BY: #{inspect group_by}"
       having   = having(query, sources)
+      IO.puts "HAVING: #{inspect having}"
       order_by = order_by(query, sources)
+      IO.puts "ORDER_BY: #{inspect order_by}"
 
       offset   = offset(query, sources)
+      IO.puts "OFFSET: #{inspect offset}"
 
       if (query.offset != nil and query.order_bys == []), do: error!(query, "ORDER BY is mandatory to use OFFSET")
       assemble([select, from, join, where, group_by, having, order_by, offset])
@@ -193,6 +264,18 @@ if Code.ensure_loaded?(Tds.Connection) do
         end
       "INSERT INTO #{quote_table(prefix, table)} " <> values
     end
+    def insert(prefix, table, header, rows, returning) do
+      values =
+      if header == [] do
+        returning(returning, "INSERTED") <>
+          "DEFAULT VALUES"
+      else
+        "(" <> Enum.map_join(header, ", ", &quote_name/1) <> ")" <>
+          " " <> returning(returning, "INSERTED") <>
+          "VALUES (" <> Enum.map_join(1..length(header), ", ", &"@#{&1}") <> ")"
+      end
+      "INSERT INTO #{quote_table(prefix, table)} " <> values
+    end
 
     def update(prefix, table, fields, filters, returning) do
       {fields, count} = Enum.map_reduce fields, 1, fn field, acc ->
@@ -231,14 +314,22 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp handle_call(fun, _arity), do: {:fun, Atom.to_string(fun)}
 
     defp select(%Query{select: %SelectExpr{fields: fields}, distinct: []} = query, sources) do
-      "SELECT " <> limit(query, sources) <> Enum.map_join(fields, ", ", &expr(&1, sources, query))
+      "SELECT " <> limit(query, sources) <> select(fields, sources, query)
     end
 
     defp select(%Query{select: %SelectExpr{fields: fields}} = query, sources) do
       "SELECT " <>
         distinct(query, sources) <>
         limit(query, sources) <>
-        Enum.map_join(fields, ", ", &expr(&1, sources, query))
+        select(fields, sources, query)
+    end
+
+    defp select([], sources, %Query{select: %SelectExpr{expr: val}} = query) do
+      expr(val, sources, query)
+    end
+    defp select(fields, sources, query) do
+      IO.puts "fields: #{inspect fields}"
+      Enum.map_join(fields, ", ", &expr(&1, sources, query))
     end
 
     defp distinct(%Query{distinct: nil}, _sources), do: ""
@@ -376,14 +467,14 @@ if Code.ensure_loaded?(Tds.Connection) do
       "#{name}.#{quote_name(field)}"
     end
 
-    defp expr({:&, _, [idx]}, sources, query) do
-      {table, name, model} = elem(sources, idx)
-      unless model do
+    defp expr({:&, _, [idx, fields, _counter]}, sources, query) do
+      {table, name, schema} = elem(sources, idx)
+      unless schema do
         error!(query, "MSSQL requires a model when using selector #{inspect name} but " <>
-                             "only the table #{inspect table} was given. Please specify a model " <>
+                             "only the table #{inspect table} was given. Please specify a schema " <>
                              "or specify exactly which fields from #{inspect name} you desire")
       end
-      fields = model.__schema__(:fields)
+
       Enum.map_join(fields, ", ", &"#{name}.#{quote_name(&1)}")
     end
 
@@ -437,12 +528,17 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     defp expr({fun, _, args}, sources, query) when is_atom(fun) and is_list(args) do
+      IO.puts "IDIOT"
+      IO.puts "fun: #{inspect fun}"
+
       {modifier, args} =
       case args do
         [rest, :distinct] -> {"DISTINCT ", [rest]}
         _ -> {"", args}
       end
 
+      IO.puts "fun: #{inspect fun}"
+      IO.puts "len args: #{length(args)}"
       case handle_call(fun, length(args)) do
         {:binary_op, op} ->
           [left, right] = args
@@ -451,6 +547,11 @@ if Code.ensure_loaded?(Tds.Connection) do
           <> op_to_binary(right, sources, query)
 
         {:fun, fun} ->
+          IO.puts "fun: #{inspect fun}"
+          IO.puts "modifier: #{inspect modifier}"
+          IO.puts "args: #{inspect args}"
+          IO.puts "sources: #{inspect sources}"
+          IO.puts "query: #{inspect query}"
           "#{fun}(" <> modifier <> Enum.map_join(args, ", ", &expr(&1, sources, query)) <> ")"
       end
     end
@@ -584,8 +685,9 @@ if Code.ensure_loaded?(Tds.Connection) do
         |> Enum.map_join(", ", &unique_expr/1)
       prefix = if command == :create_if_not_exists, do: "IF NOT EXISTS (" <> ddl_exists(table) <> ") BEGIN ", else: ""
       postfix = if command == :create_if_not_exists, do: "END", else: ""
+      {table, composite_pk_def} = composite_pk_definition(table, columns)
       prefix <>
-      "CREATE TABLE #{quote_name(table.name)} (#{column_definitions(table, columns)}" <>
+      "CREATE TABLE #{quote_table(table.prefix, table.name)} (#{column_definitions(table, columns)}#{composite_pk_def}" <>
       if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")" <>
       options <> postfix
     end
@@ -593,25 +695,34 @@ if Code.ensure_loaded?(Tds.Connection) do
     def execute_ddl({command, %Table{name: name} = table}, _repo) when command in @drops do
       prefix = if command == :drop_if_exists, do: "IF EXISTS (" <> ddl_exists(table) <> ") BEGIN ", else: ""
       postfix = if command == :drop_if_exists, do: "END", else: ""
-      prefix <> "DROP TABLE #{quote_name(name)}" <> postfix
+      prefix <> "DROP TABLE #{quote_table(table.prefix, table.name)}" <> postfix
     end
 
     def execute_ddl({:alter, %Table{}=table, changes}, _repo) do
       Enum.map_join(changes, "; ", fn(change) ->
-        "ALTER TABLE #{quote_name(table.name)} #{column_change(table, change)}"
+        "ALTER TABLE #{quote_table(table.prefix, table.name)} #{column_change(table, change)}"
       end)
     end
 
     def execute_ddl({:rename, %Table{}=current_table, %Table{}=new_table}, _repo) do
-      "EXEC sp_rename '#{current_table.name}', '#{new_table.name}'"
+      case current_table.prefix do
+        nil ->
+          "EXEC sp_rename '#{current_table.name}', '#{new_table.name}'"
+        _ ->
+          "EXEC sp_rename '#{current_table.prefix}.#{current_table.name}', '#{new_table.prefix}.#{new_table.name}'"
+      end
     end
 
     def execute_ddl({:rename, %Table{}=current_table, current_column, new_column}, _repo) do
-      "EXEC sp_rename '#{current_table.name}.#{current_column}', '#{new_column}', 'COLUMN'"
+      case current_table.prefix do
+        nil ->
+          "EXEC sp_rename '#{current_table.name}.#{current_column}', '#{new_column}', 'COLUMN'"
+        _ ->
+          "EXEC sp_rename '#{current_table.prefix}.#{current_table.name}.#{current_column}', '#{new_column}', 'COLUMN'"
+      end
     end
 
     def execute_ddl({command, %Index{}=index}, repo) when command in @creates do
-
       filter =
       if (repo.config[:filter_null_on_unique_indexes] == true and index.unique) do
         " WHERE #{Enum.map_join(index.columns, " AND ", fn(column) -> "#{column} IS NOT NULL" end)}"
@@ -627,9 +738,9 @@ if Code.ensure_loaded?(Tds.Connection) do
     end
 
     def execute_ddl({command, %Index{}=index}, _repo) do
-      prefix = if command == :drop_if_exists, do: "IF EXISTS (" <> ddl_exists(index) <> ") BEGIN", else: ""
-      postfix = if command == :drop_if_exists, do: "END", else: ""
-      assemble([prefix, "DROP INDEX", quote_name(index.name), " ON ", quote_name(index.table), postfix])
+      prefix = if command == :drop_if_exists, do: "IF EXISTS (" <> ddl_exists(index) <> ") BEGIN", else: nil
+      postfix = if command == :drop_if_exists, do: "END", else: nil
+      assemble([prefix, "DROP INDEX", quote_name(index.name), " ON ", quote_table(index.prefix, index.table), postfix])
     end
 
     def execute_ddl(default, _repo) when is_binary(default), do: default
@@ -643,13 +754,13 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp column_definition(table, {:add, name, %Reference{} = ref, opts}) do
       assemble([
-        quote_name(name), reference_column_type(ref.type, opts), column_options(name, ref.type, opts), default_expr(opts, name, ref.type),
+        quote_name(name), reference_column_type(ref.type, opts), column_options(table, name, ref.type, opts), default_expr(opts, name, ref.type),
         reference_expr(ref, table, name)
       ])
     end
 
-    defp column_definition(_table, {:add, name, type, opts}) do
-      assemble([quote_name(name), column_type(type, opts), column_options(name, type, opts), serial_expr(type), default_expr(opts, name, type)])
+    defp column_definition(table, {:add, name, type, opts}) do
+      assemble([quote_name(name), column_type(type, opts), column_options(table, name, type, opts), serial_expr(type), default_expr(opts, name, type)])
     end
 
     # defp column_changes(table, columns) do
@@ -658,24 +769,24 @@ if Code.ensure_loaded?(Tds.Connection) do
 
     defp column_change(table, {:add, name, %Reference{} = ref, opts}) do
       assemble([
-        "ADD", quote_name(name), reference_column_type(ref.type, opts), column_options(name, ref.type, opts),
+        "ADD", quote_name(name), reference_column_type(ref.type, opts), column_options(table, name, ref.type, opts),
         default_expr(opts, name, ref.type), reference_expr(ref, table, name)
       ])
     end
 
-    defp column_change(_, {:add, name, type, opts}) do
-      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(name, type, opts), default_expr(opts, name, type)])
+    defp column_change(table, {:add, name, type, opts}) do
+      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(table, name, type, opts), default_expr(opts, name, type)])
     end
 
     defp column_change(table, {:modify, name, %Reference{} = ref, opts}) do
         assemble([
-        "ALTER COLUMN", quote_name(name), reference_column_type(ref.type, opts), column_options(name, ref.type, opts),
+        "ALTER COLUMN", quote_name(name), reference_column_type(ref.type, opts), column_options(table, name, ref.type, opts),
         constraint_expr(ref, table, name), modify_default(table.name, name, ref.type, opts)
       ])
     end
 
     defp column_change(table, {:modify, name, type, opts}) do
-      assemble(["ALTER COLUMN", quote_name(name), column_type(type, opts), column_options(name, type, opts), modify_default(table.name, name, type, opts)])
+      assemble(["ALTER COLUMN", quote_name(name), column_type(type, opts), column_options(table, name, type, opts), modify_default(table.name, name, type, opts)])
     end
 
     defp column_change(table, {:remove, name}) do
@@ -700,15 +811,31 @@ if Code.ensure_loaded?(Tds.Connection) do
       end
     end
 
-    defp column_options(_name, _type, opts) do
+    defp column_options(table, _name, _type, opts) do
       null    = Keyword.get(opts, :null)
-      pk      = Keyword.get(opts, :primary_key)
+			pk 			= (table.primary_key != :composite) and Keyword.get(opts, :primary_key, false)
       if pk == true, do: null = false
+
       [null_expr(null), pk_expr(pk)]
     end
 
     defp pk_expr(true), do: "PRIMARY KEY"
     defp pk_expr(_), do: nil
+
+		defp composite_pk_definition(%Table{}=table, columns) do
+      pks = Enum.reduce(columns, [], fn({_, name, _, opts}, pk_acc) ->
+        case Keyword.get(opts, :primary_key, false) do
+          true -> [name|pk_acc]
+          false -> pk_acc
+        end
+      end)
+      if length(pks)>1 do
+        composite_pk_expr = pks |> Enum.reverse |> Enum.map_join(", ", &quote_name/1)
+        {%{table | primary_key: :composite}, ", PRIMARY KEY (" <> composite_pk_expr <> ")"}
+      else
+        {table, ""}
+      end
+    end
 
     defp serial_expr(:serial), do: "IDENTITY"
     defp serial_expr(_), do: nil
@@ -846,6 +973,7 @@ if Code.ensure_loaded?(Tds.Connection) do
     defp ecto_to_db(:datetime),   do: "datetime2"
     defp ecto_to_db(:map),        do: "nvarchar"
     defp ecto_to_db(:boolean),    do: "bit"
+    defp ecto_to_db({:map, :string}),    do: "nvarchar"
     defp ecto_to_db(other),       do: Atom.to_string(other)
 
     def uuid(<<v1::32, v2::16, v3::16, v4::64>>) do

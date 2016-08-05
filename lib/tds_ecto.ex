@@ -59,13 +59,13 @@ defmodule Tds.Ecto do
 
   ## Custom MSSQL types
 
-  def load({:embed, _} = type, binary) when is_binary(binary),
-    do: super(type, json_library.decode!(binary))
-  def load(:map, binary) when is_binary(binary),
-    do: super(:map, json_library.decode!(binary))
-  def load(:boolean, 0), do: {:ok, false}
-  def load(:boolean, 1), do: {:ok, true}
-  def load(type, value), do: super(type, value)
+  def loaders({:embed, _} = type, binary) when is_binary(binary),
+    do: [type, json_library.decode!(binary)]
+  def loaders(:map, binary) when is_binary(binary),
+    do: [:map, json_library.decode!(binary)]
+  def loaders(:boolean, 0), do: [{:ok, false}]
+  def loaders(:boolean, 1), do: [{:ok, true}]
+  def loaders(type, value), do: [type, value]
 
   defp json_library, do: Application.get_env(:ecto, :json_library)
 
