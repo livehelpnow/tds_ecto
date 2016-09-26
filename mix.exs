@@ -4,7 +4,7 @@ defmodule TDS.Ecto.Mixfile do
   def project do
     [
       app: :tds_ecto,
-      version: "1.0.2",
+      version: "0.1.0-alpha",
       elixir: "~> 1.0",
       deps: deps,
       description: description,
@@ -22,7 +22,7 @@ defmodule TDS.Ecto.Mixfile do
   defp deps do
     [
       {:ecto, "~> 2.0.0-rc"},
-      {:tds, git: "https://0o0@bitbucket.org/livehelpnow/tds.git", branch: "ecto2"},
+      {:tds, github: "livehelpnow/tds", branch: "ecto2"},
       {:poison, only: :test}
     ]
   end
