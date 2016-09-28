@@ -2,6 +2,8 @@
 
 MSSQL / TDS Adapter for Ecto
 
+This branch is an alpha version that currently aims to support Ecto 2.0. Please check the issues tagged ecto2 for a more complete overview. This branch should not yet be considered stable or used in production.
+
 ## Example
 ```elixir
 # In your config/config.exs file add MSSQL connection options
@@ -23,7 +25,7 @@ defmodule Repo do
 end
 
 defmodule Weather do
-  use Ecto.Model
+  use Ecto.Schema
 
   schema "weather" do
     field :city     # Defaults to type :string
@@ -51,7 +53,7 @@ Add Tds as a dependency in your `mix.exs` file.
 
 ```elixir
 def deps do
-  [{:tds_ecto, "~> 1.0.2"}]
+  [{:tds_ecto, "~> 0.1.0-alpha", github: "livehelpnow/tds_ecto", branch: "ecto2"}]
 end
 ```
 
@@ -118,7 +120,7 @@ Additionally SQL authentication needs to be used for connecting and testing. Add
 
 ## License
 
-   Copyright 2014, 2015 LiveHelpNow
+   Copyright 2014, 2015, 2016 LiveHelpNow
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
