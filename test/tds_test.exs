@@ -7,9 +7,13 @@ defmodule Tds.Ecto.TdsTest do
 
   alias Ecto.Queryable
   alias Tds.Ecto.Connection, as: SQL
-
+  
   defmodule Model do
-    use Ecto.Model
+    use Ecto.Schema
+
+    import Ecto
+    import Ecto.Changeset
+    import Ecto.Query
 
     schema "model" do
       field :x, :integer
@@ -27,7 +31,11 @@ defmodule Tds.Ecto.TdsTest do
   end
 
   defmodule Model2 do
-    use Ecto.Model
+    use Ecto.Schema
+
+    import Ecto
+    import Ecto.Changeset
+    import Ecto.Query
 
     schema "model2" do
       belongs_to :post, Tds.Ecto.TdsTest.Model,
@@ -37,7 +45,11 @@ defmodule Tds.Ecto.TdsTest do
   end
 
   defmodule Model3 do
-    use Ecto.Model
+    use Ecto.Schema
+
+    import Ecto
+    import Ecto.Changeset
+    import Ecto.Query
 
     schema "model3" do
       field :binary, :binary

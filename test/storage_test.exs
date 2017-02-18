@@ -7,14 +7,14 @@ defmodule Tds.Ecto.StorageTest do
     [database: "storage_mgt",
      username: "mssql",
      password: "mssql",
-     hostname: "192.168.11.101"]
+     hostname: "localhost"]
   end
 
   def wrong_user do
     [database: "storage_mgt",
      username: "randomuser",
      password: "password1234",
-     hostname: "192.168.11.101"]
+     hostname: "localhost"]
   end
 
   def drop_database do
