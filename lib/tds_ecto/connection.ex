@@ -1,11 +1,11 @@
 if Code.ensure_loaded?(Tds) do
   defmodule Tds.Ecto.Connection do
     @moduledoc false
-
+    require Logger
     @default_port System.get_env("MSSQLPORT") || 1433
 
     @behaviour Ecto.Adapters.SQL.Connection
-    @behaviour Ecto.Adapters.SQL.Query
+    # @behaviour Ecto.Adapters.SQL.Query
 
     def connect(opts) do
       opts = opts
@@ -61,7 +61,7 @@ if Code.ensure_loaded?(Tds) do
       DBConnection.prepare_execute(pid, query, params, opts)
     end
 
-    def execute(pid, statement, params, opts) when is_binary(statement) do
+    def execute(pid, statement, params, opts) when is_binary(statement) or is_list(statement) do
       query = %Query{statement: statement}
 
       {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
@@ -308,7 +308,9 @@ if Code.ensure_loaded?(Tds) do
 
       assemble([delete, from, join, where])
     end
-
+    def insert(prefix, table, header, rows, on_conflict, returning) do
+      Logger.info(inspect(["OVDE", prefix, table, header, rows, on_conflict, returning]))
+    end
     def insert(prefix, table, fields, returning) do
       values =
         if fields == [] do
@@ -728,8 +730,10 @@ if Code.ensure_loaded?(Tds) do
     @drops [:drop, :drop_if_exists]
     @creates [:create, :create_if_not_exists]
 
-    def ddl_exists(%Table{name: name}) do
-      "SELECT * FROM information_schema.tables t WHERE t.table_name = '#{escape_string(to_string(name))}'"
+    def ddl_exists(%Table{name: name}=table) do
+      prefix = if table.prefix, do: table.prefix, else: 'dbo'
+      "SELECT * FROM information_schema.tables t WHERE t.table_name = '#{escape_string(to_string(name))}' " <> 
+      "AND t.table_schema = '#{escape_string(to_string(prefix))}'"
     end
 
     def ddl_exists(%Index{name: name}) do
@@ -737,7 +741,6 @@ if Code.ensure_loaded?(Tds) do
     end
 
     def execute_ddl(_, _ \\ nil)
-
     def execute_ddl({command, %Table{}=table, columns}, _repo) when command in @creates do
       options = options_expr(table.options)
       unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->
@@ -963,15 +966,16 @@ if Code.ensure_loaded?(Tds) do
       type_name = ecto_to_db(type)
 
       cond do
-        type == :serial -> "bigint"
-        pk == true      -> "bigint"
-        size            -> "#{type_name}(#{size})"
-        precision       -> "#{type_name}(#{precision},#{scale || 0})"
-        type == :string -> "nvarchar(255)"
-        type == :map    -> "nvarchar(max)"
-        type == :text   -> "nvarchar(max)"
-        type == :binary -> "varbinary(max)"
-        type == :boolean -> "bit"
+        type == :serial         -> "bigint"
+        pk == true              -> "bigint"
+        size                    -> "#{type_name}(#{size})"
+        precision               -> "#{type_name}(#{precision},#{scale || 0})"
+        type == :string         -> "nvarchar(255)"
+        type == :map            -> "nvarchar(max)"
+        type == :text           -> "nvarchar(max)"
+        type == :binary         -> "varbinary(max)"
+        type == :boolean        -> "bit"
+        type == :naive_datetime -> "datetime"
         true            -> "#{type_name}"
       end
     end
@@ -1035,7 +1039,7 @@ if Code.ensure_loaded?(Tds) do
     defp ecto_to_db(:datetime),   do: "datetime2"
     defp ecto_to_db(:map),        do: "nvarchar"
     defp ecto_to_db(:boolean),    do: "bit"
-    defp ecto_to_db({:map, :string}),    do: "nvarchar"
+    defp ecto_to_db({:map, :string}), do: "nvarchar"
     defp ecto_to_db(other),       do: Atom.to_string(other)
 
     def uuid(<<v1::32, v2::16, v3::16, v4::64>>) do

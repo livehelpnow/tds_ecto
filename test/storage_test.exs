@@ -1,67 +1,69 @@
 defmodule Tds.Ecto.StorageTest do
-  use ExUnit.Case#, async: true
+  use ExUnit.Case, async: true
 
   alias Tds.Ecto
 
-  def correct_params do
+  def params do
     [database: "storage_mgt",
+    pool: Ecto.Adapters.SQL.Sandbox,
      username: "mssql",
      password: "mssql",
      hostname: "localhost"]
   end
 
-  def wrong_user do
-    [database: "storage_mgt",
-     username: "randomuser",
-     password: "password1234",
-     hostname: "localhost"]
+  def wrong_params do
+    Keyword.merge params(),
+      [username: "randomuser",
+       password: "password1234"]
   end
 
   def drop_database do
-    run_with_sql_conn(correct_params, "DROP DATABASE storage_mgt")
+    database = params()[:database]
+    run_sqlcmd("DROP DATABASE [#{database}];")
   end
 
   def create_database do
-    run_with_sql_conn(correct_params, "CREATE DATABASE storage_mgt")
+    database = params()[:database]
+    run_sqlcmd("CREATE DATABASE [#{database}];")
   end
 
-  defp run_with_sql_conn(opts, sql_command) do
-    opts = opts |> Keyword.put(:database, "master")
-    case Ecto.Adapters.Mssql.Connection.connect(opts) do
-      {:ok, pid} ->
-        # Execute the query
-        case Ecto.Adapters.Mssql.Connection.query(pid, sql_command, [], []) do
-          {:ok, %{}} -> {:ok, 0}
-          {_, %Tds.Error{mssql: error}} ->
-            {error, 1}
-        end
-      {_, error} -> 
-        {error, 1}
-    end
+  def create_posts do
+    run_sqlcmd("CREATE TABLE posts (title nvarchar(20));", ["-d", params()[:database]])
   end
 
-  setup do
-    on_exit fn -> drop_database end
-    :ok
+  def run_sqlcmd(sql, args \\ []) do
+    args = [
+      "-U", params()[:username], 
+      "-P", params()[:password],
+      "-H", params()[:hostname], 
+      "-Q", ~s(#{sql}) | args]
+    # IO.puts(Enum.map_join(args, " ", &"#{&1}"))
+    System.cmd "sqlcmd", args
+  end
+
+  # setup do
+  #   on_exit fn -> drop_database end
+  #   :ok
+  # end
+  
+  test "storage up (twice in a row)" do
+    assert Tds.Ecto.storage_up(params()) == :ok
+    assert Tds.Ecto.storage_up(params()) == {:error, :already_up}
+  after
+    drop_database()
+  end
+
+  test "storage down (twice in a row)" do
+    create_database()
+    assert Tds.Ecto.storage_down(params()) == :ok
+    assert Tds.Ecto.storage_down(params()) == {:error, :already_down}
   end
   
-  # test "storage up (twice in a row)" do
-  #   assert Mssql.storage_up(correct_params) == :ok
-  #   assert Mssql.storage_up(correct_params) == {:error, :already_up}
-  # end
-
-  # test "storage up (wrong credentials)" do
-  #   refute Mssql.storage_up(wrong_user) == :ok
-  # end
-
-  # test "storage down (twice in a row)" do
-  #   create_database
-  #   assert Mssql.storage_down(correct_params) == :ok
-  #   assert Mssql.storage_down(correct_params) == {:error, :already_down}
-  # end
-
-  # test "storage down (wrong credentials)" do
-  #   create_database
-  #   refute Mssql.storage_down(wrong_user) == :ok
+  # test "storage up and down (wrong credentials)" do
+  #   refute Tds.Ecto.storage_up(wrong_params()) == :ok
+  #   create_database()
+  #   refute Tds.Ecto.storage_down(wrong_params()) == :ok
+  # after
+  #   drop_database()
   # end
 end

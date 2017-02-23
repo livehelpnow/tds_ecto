@@ -59,69 +59,126 @@ defmodule Tds.Ecto do
 
   ## Custom MSSQL types
 
-  def loaders({:embed, _} = type, binary) when is_binary(binary),
-    do: [type, json_library.decode!(binary)]
-  def loaders(:map, binary) when is_binary(binary),
-    do: [:map, json_library.decode!(binary)]
-  def loaders(:boolean, 0), do: [{:ok, false}]
-  def loaders(:boolean, 1), do: [{:ok, true}]
-  def loaders(type, value), do: [type, value]
+  @doc false
+  def loaders(:map, type),                  do: [&json_decode/1, type]
+  def loaders({:map, _}, type),             do: [&json_decode/1, type]
+  def loaders(:boolean, type),              do: [&bool_decode/1, type]
+  def loaders(:binary_id, type),            do: [Ecto.UUID, type]
+  def loaders({:embed, _} = type, _),       do: [&json_decode/1, &Ecto.Adapters.SQL.load_embed(type, &1)]
+  # def loaders({:embed, _} = type, binary) when is_binary(binary), do: [type, json_library.decode!(binary)]
+  def loaders(_, type),                     do: [type]
+
+  # def loaders(:map, binary) when is_binary(binary),               do: [:map, json_library.decode!(binary)]
+  # def loaders(:boolean, 0),                                       do: [{:ok, false}]
+  # def loaders(:boolean, 1),                                       do: [{:ok, true}]
+  # def loaders(type, value),                                       do: [type, value]
+
+  defp bool_decode(<<0>>),  do: {:ok, false}
+  defp bool_decode(<<1>>),  do: {:ok, true}
+  defp bool_decode(0),      do: {:ok, false}
+  defp bool_decode(1),      do: {:ok, true}
+  defp bool_decode(x),      do: {:ok, x}
+
+  defp json_decode(x) when is_binary(x),  do: {:ok, json_library.decode!(x)}
+  defp json_decode(x),                    do: {:ok, x}
 
   defp json_library, do: Application.get_env(:ecto, :json_library)
 
+  # Storage API
+  @doc false
   def storage_up(opts) do
-    database = Keyword.fetch!(opts, :database)
+    database  = Keyword.fetch!(opts, :database) || raise ":database is nil in repository configuration"
+   
+    command =
+      ~s(CREATE DATABASE [#{database}])
+      |> concat_if(opts[:lc_collate], &"COLLATE=#{&1}")
 
-    extra = ""
-
-    if lc_collate = Keyword.get(opts, :lc_collate) do
-      extra = extra <> " COLLATE='#{lc_collate}'"
-    end
-
-    {output, status} =
-      run_with_sql_conn opts, "CREATE DATABASE " <> database <> extra
-    #IO.inspect status
-    cond do
-      status == 0                                -> :ok
-      output != nil -> if String.contains?(output[:msg_text], "already exists"), do: {:error, :already_up}
-      true                                       -> {:error, output}
+    case run_query(opts, command) do
+      {:ok, _} -> :ok
+      {:error, %Tds.Error{mssql: %{number: 1801}}} ->
+        {:error, :already_up}
+      {:error, error} ->
+        {:error, Exception.message(error)}
     end
   end
+
+  defp concat_if(content, nil, _fun),  do: content
+  defp concat_if(content, value, fun), do: content <> " " <> fun.(value)
 
   @doc false
   def storage_down(opts) do
-    {output, status} = run_with_sql_conn(opts, "DROP DATABASE #{opts[:database]}")
-    IO.inspect output
-    cond do
-      status == 0                                -> :ok
-      output != nil -> if String.contains?(output[:msg_text], "does not exist"), do: {:error, :already_down}
-      true                                       -> {:error, output}
+    database = Keyword.fetch!(opts, :database) || raise ":database is nil in repository configuration"
+
+    case run_query(opts, "DROP DATABASE [#{opts[:database]}]") do
+      {:ok, _} ->
+        :ok
+      {:error, %Tds.Error{mssql: %{number: 3701}}} ->
+        {:error, :already_down}
+      {:error, error} ->
+        {:error, Exception.message(error)}
     end
   end
 
-  def execute_ddl(repo, definition, opts) do
-    sql = @conn.execute_ddl(definition, repo)
-    IO.puts(sql)
-    Ecto.Adapters.SQL.query(repo, sql, [], opts)
-    :ok
+  def select_versions(table, opts) do
+    case run_query(opts, ~s(SELECT version FROM [#{table}] ORDER BY version)) do
+      {:ok, %{rows: rows}} -> {:ok, Enum.map(rows, &hd/1)}
+      {:error, _} = error  -> error
+    end
   end
 
-  defp run_with_sql_conn(opts, sql_command) do
-    host = opts[:hostname] || System.get_env("MSSQLHOST") || "localhost"
-    database = opts[:database] || "master"
-    opts = opts
-      |> Keyword.put(:database, database)
-      |> Keyword.put(:hostname, host)
-    case Tds.Ecto.Connection.connect(opts) do
-      {:ok, pid} ->
-        # Execute the query
-        case Tds.Ecto.Connection.query(pid, sql_command, [], []) do
-          {:ok, %{}} -> {:ok, 0}
-          {_, %Tds.Error{message: _message, mssql: error}} ->
-            {error, 1}
-        end
-      {_,error} ->
-        {error, 1}
+  defp append_versions(_table, [], contents) do
+    {:ok, contents}
+  end
+  defp append_versions(table, versions, contents) do
+    {:ok,
+      contents <>
+      "INSERT INTO [#{table}] (version) VALUES " <>
+      Enum.map_join(versions, ", ", &"(#{&1})") <>
+      ~s[;\n\n]}
+  end
+
+  # def execute_ddl(repo, definition, opts) do
+  #   sql = @conn.execute_ddl(definition, repo)
+  #   IO.puts(sql)
+  #   Ecto.Adapters.SQL.query(repo, sql, [], opts)
+  #   :ok
+  # end
+
+  defp run_query(opts, sql_command) do
+    {:ok, _} = Application.ensure_all_started(:tds)
+    
+    hostname = Keyword.get(opts, :hostname) || System.get_env("MSSQLHOST") || "localhost"
+    
+    opts =
+      opts
+      |> Keyword.delete(:name)
+      |> Keyword.put(:hostname, hostname)
+      |> Keyword.put(:pool, DBConnection.Connection)
+      |> Keyword.put(:backoff_type, :stop)
+
+    {:ok, pid} = Task.Supervisor.start_link
+
+    task = Task.Supervisor.async_nolink(pid, fn ->
+      {:ok, conn} = Tds.start_link(opts)
+
+      value = Tds.Ecto.Connection.execute(conn, sql_command, [], opts)
+      GenServer.stop(conn)
+      value
+    end)
+    database = Keyword.get(opts, :database) || "master"
+    timeout = Keyword.get(opts, :timeout, 15_000)
+    case Task.yield(task, timeout) || Task.shutdown(task) do
+      {:ok, {:ok, result}} ->
+        {:ok, result}
+      {:ok, {:error, error}} ->
+        {:error, error}
+      {:exit, {%{__struct__: struct} = error, _}}
+          when struct in [Tds.Error, DBConnection.Error] ->
+        {:error, error}
+      {:exit, reason}  ->
+        {:error, RuntimeError.exception(Exception.format_exit(reason))}
+      nil ->
+        {:error, RuntimeError.exception("command timed out")}
     end
   end
 
