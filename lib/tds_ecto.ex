@@ -148,10 +148,11 @@ defmodule Tds.Ecto do
     {:ok, _} = Application.ensure_all_started(:tds)
     
     hostname = Keyword.get(opts, :hostname) || System.get_env("MSSQLHOST") || "localhost"
-    
+    timeout = Keyword.get(opts, :timeout, 15_000)
     opts =
       opts
       |> Keyword.delete(:name)
+      |> Keyword.put(:database, "master")
       |> Keyword.put(:hostname, hostname)
       |> Keyword.put(:pool, DBConnection.Connection)
       |> Keyword.put(:backoff_type, :stop)
@@ -165,8 +166,7 @@ defmodule Tds.Ecto do
       GenServer.stop(conn)
       value
     end)
-    database = Keyword.get(opts, :database) || "master"
-    timeout = Keyword.get(opts, :timeout, 15_000)
+    
     case Task.yield(task, timeout) || Task.shutdown(task) do
       {:ok, {:ok, result}} ->
         {:ok, result}

@@ -1,5 +1,5 @@
 defmodule Tds.Ecto.StorageTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Tds.Ecto
 
@@ -49,7 +49,6 @@ defmodule Tds.Ecto.StorageTest do
   test "storage up (twice in a row)" do
     assert Tds.Ecto.storage_up(params()) == :ok
     assert Tds.Ecto.storage_up(params()) == {:error, :already_up}
-  after
     drop_database()
   end
 
@@ -59,11 +58,10 @@ defmodule Tds.Ecto.StorageTest do
     assert Tds.Ecto.storage_down(params()) == {:error, :already_down}
   end
   
-  # test "storage up and down (wrong credentials)" do
-  #   refute Tds.Ecto.storage_up(wrong_params()) == :ok
-  #   create_database()
-  #   refute Tds.Ecto.storage_down(wrong_params()) == :ok
-  # after
-  #   drop_database()
-  # end
+  test "storage up and down (wrong credentials)" do
+    refute Tds.Ecto.storage_up(wrong_params()) == :ok
+    create_database()
+    refute Tds.Ecto.storage_down(wrong_params()) == :ok
+    drop_database()
+  end
 end

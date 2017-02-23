@@ -74,11 +74,11 @@ end
 
 {:ok, _} = Tds.Ecto.ensure_all_started(TestRepo, :temporary)
 
-_   = Tds.Ecto.storage_down(TestRepo.config)
-:ok = Tds.Ecto.storage_up(TestRepo.config)
+# _   = Tds.Ecto.storage_down(TestRepo.config)
+# :ok = Tds.Ecto.storage_up(TestRepo.config)
 
-{:ok, pid} = TestRepo.start_link
-{:ok, _pid} = PoolRepo.start_link
+# {:ok, pid} = TestRepo.start_link
+# {:ok, _pid} = PoolRepo.start_link
 # :ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)
-Ecto.Adapters.SQL.Sandbox.mode(TestRepo, :manual)
+# Ecto.Adapters.SQL.Sandbox.mode(TestRepo, :manual)
 Process.flag(:trap_exit, true)
