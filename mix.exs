@@ -1,10 +1,12 @@
 defmodule TDS.Ecto.Mixfile do
   use Mix.Project
 
+  @version "2.0.0-alpha"
+
   def project do
     [
       app: :tds_ecto,
-      version: "0.1.0-alpha",
+      version: @version,
       elixir: "~> 1.0",
       deps: deps,
       description: description,
@@ -29,7 +31,7 @@ defmodule TDS.Ecto.Mixfile do
 
   defp description do
     """
-    MSSQL / TDS Adapter for Ecto.
+    MSSQL / TDS Adapter v#{@version} for Ecto.
     """
   end
 

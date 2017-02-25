@@ -6,7 +6,7 @@ if Code.ensure_loaded?(Tds) do
 
     @behaviour Ecto.Adapters.SQL.Connection
     # @behaviour Ecto.Adapters.SQL.Query
-
+    
     def connect(opts) do
       opts = opts
         |> Keyword.put_new(:port, @default_port)
@@ -22,81 +22,20 @@ if Code.ensure_loaded?(Tds) do
 
     def prepare_execute(pid, _name, statement, params, opts \\ []) do
       query = %Query{statement: statement}
-
       {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
-        {value, type} = case param do
-          %Ecto.Query.Tagged{value: value, type: :boolean} ->
-              value = if value == true, do: 1, else: 0
-              {value, :boolean}
-          %Ecto.Query.Tagged{value: value, type: :binary} ->
-            type = if value == "", do: :string, else: :binary
-            {value, type}
-          %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} ->
-
-            cond do
-              us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
-              true -> {{{y,m,d},{hh,mm,ss}}, :datetime}
-            end
-          %Ecto.Query.Tagged{value: value, type: type} when type in [:binary_id, :uuid] ->
-            cond do
-              value == nil -> {nil, :binary}
-              String.length(value) > 16 ->
-                {:ok, value} = Ecto.UUID.cast(value)
-                {value, :string}
-              true ->
-                {uuid(value), :binary}
-            end
-          %Ecto.Query.Tagged{value: value, type: type} ->
-            {value, type}
-          %{__struct__: _} = value -> {value, nil}
-          %{} = value -> {json_library.encode!(value), :string}
-          value ->
-            param(value)
-        end
+        {value, type} = prepare_param(param)
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
       end
-
       opts = Keyword.put(opts, :parameters, params)
-
       DBConnection.prepare_execute(pid, query, params, opts)
     end
 
     def execute(pid, statement, params, opts) when is_binary(statement) or is_list(statement) do
       query = %Query{statement: statement}
-
       {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
-        {value, type} = case param do
-          %Ecto.Query.Tagged{value: value, type: :boolean} ->
-              value = if value == true, do: 1, else: 0
-              {value, :boolean}
-          %Ecto.Query.Tagged{value: value, type: :binary} ->
-            type = if value == "", do: :string, else: :binary
-            {value, type}
-          %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} ->
-
-            cond do
-              us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
-              true -> {{{y,m,d},{hh,mm,ss}}, :datetime}
-            end
-          %Ecto.Query.Tagged{value: value, type: type} when type in [:binary_id, :uuid] ->
-            cond do
-              value == nil -> {nil, :binary}
-              String.length(value) > 16 ->
-                {:ok, value} = Ecto.UUID.cast(value)
-                {value, :string}
-              true ->
-                {uuid(value), :binary}
-            end
-          %Ecto.Query.Tagged{value: value, type: type} ->
-            {value, type}
-          %{__struct__: _} = value -> {value, nil}
-          %{} = value -> {json_library.encode!(value), :string}
-          value ->
-            param(value)
-        end
+        {value, type} = prepare_param(param)
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
       end
-
       opts = Keyword.put(opts, :parameters, params)
 
 			case DBConnection.prepare_execute(pid, query, params, opts) do
@@ -105,91 +44,50 @@ if Code.ensure_loaded?(Tds) do
       end
     end
     def execute(pid, %{} = query, params, opts) do
-
       opts = Keyword.put_new(opts, :parameters, params)
       {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
-        {value, type} = case param do
-          %Ecto.Query.Tagged{value: value, type: :boolean} ->
-              value = if value == true, do: 1, else: 0
-              {value, :boolean}
-          %Ecto.Query.Tagged{value: value, type: :binary} ->
-            type = if value == "", do: :string, else: :binary
-            {value, type}
-          %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} ->
-
-            cond do
-              us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
-              true -> {{{y,m,d},{hh,mm,ss}}, :datetime}
-            end
-          %Ecto.Query.Tagged{value: value, type: type} when type in [:binary_id, :uuid] ->
-            cond do
-              value == nil -> {nil, :binary}
-              String.length(value) > 16 ->
-                {:ok, value} = Ecto.UUID.cast(value)
-                {value, :string}
-              true ->
-                {uuid(value), :binary}
-            end
-          %Ecto.Query.Tagged{value: value, type: type} ->
-            {value, type}
-          %{__struct__: _} = value -> {value, nil}
-          %{} = value -> {json_library.encode!(value), :string}
-          value ->
-            param(value)
-        end
+        {value, type} = prepare_param(param)
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
       end
-
       opts = Keyword.put(opts, :parameters, params)
-
 			case DBConnection.prepare_execute(pid, query, params, opts) do
         {:ok, _, query} -> {:ok, query}
         {:error, _} = err -> err
       end
     end
 
-
     def query(conn, sql, params, opts) do
       {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
-
-        {value, type} = case param do
-          %Ecto.Query.Tagged{value: value, type: :boolean} ->
-              value = if value == true, do: 1, else: 0
-              {value, :boolean}
-          %Ecto.Query.Tagged{value: value, type: :binary} ->
-            type = if value == "", do: :string, else: :binary
-            {value, type}
-          %Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime} ->
-
-            cond do
-              us > 0 -> {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
-              true -> {{{y,m,d},{hh,mm,ss}}, :datetime}
-            end
-          %Ecto.Query.Tagged{value: value, type: type} when type in [:binary_id, :uuid] ->
-            cond do
-              value == nil -> {nil, :binary}
-              String.length(value) > 16 ->
-                {:ok, value} = Ecto.UUID.cast(value)
-                {value, :string}
-              true ->
-                {uuid(value), :binary}
-            end
-          %Ecto.Query.Tagged{value: value, type: type} ->
-            {value, type}
-          %{__struct__: _} = value -> {value, nil}
-          %{} = value -> {json_library.encode!(value), :string}
-          value ->
-            param(value)
-        end
+        {value, type} = prepare_param(param)
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
       end
-
       case Tds.query(conn, sql, params, opts) do
         {:ok, %Tds.Result{} = result} ->
           {:ok, Map.from_struct(result)}
         {:error, %Tds.Error{}} = err  -> err
       end
     end
+
+    
+    defp prepare_param(%Ecto.Query.Tagged{value: true, type: :boolean}),                                 do: {1, :boolean}
+    defp prepare_param(%Ecto.Query.Tagged{value: false, type: :boolean}),                                do: {0, :boolean}
+    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}) when value == "",                do: {value, :string}
+    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}),                                 do: {value, :binary}
+    defp prepare_param(%Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime}) when us > 0, do: {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
+    defp prepare_param(%Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime}),             do: {{{y,m,d},{hh,mm,ss}}, :datetime}
+    defp prepare_param(%Ecto.Query.Tagged{value: nil, type: type}) when type in [:binary_id, :uuid],     do: {nil, :binary}
+    defp prepare_param(%Ecto.Query.Tagged{value: value, type: type}) when type in [:binary_id, :uuid]    do
+      if String.length(value) > 16 do
+        {:ok, value} = Ecto.UUID.cast(value)
+        {value, :string}
+      else
+        {uuid(value), :binary}
+      end
+    end
+    defp prepare_param(%Ecto.Query.Tagged{value: value, type: type}) when type in [:binary_id, :uuid],     do: {value, type}
+    defp prepare_param(%{__struct__: _} = value),                                                          do: {value, nil}
+    defp prepare_param(%{} = value),                                                                       do: {json_library.encode!(value), :string}
+    defp prepare_param(value),                                                                             do: param(value)
 
     defp param(value) when is_binary(value) do
       case :unicode.characters_to_binary(value, :utf8, {:utf16, :little}) do
@@ -410,7 +308,7 @@ if Code.ensure_loaded?(Tds) do
     defp distinct(%Query{distinct: %QueryExpr{expr: true}}, _sources),  do: "DISTINCT "
     defp distinct(%Query{distinct: %QueryExpr{expr: false}}, _sources), do: ""
     defp distinct(%Query{distinct: %QueryExpr{expr: _exprs}} = query, _sources) do
-      error!(query, "MSSQL does not allow expressions in distinct")
+      error!(query, "TDS does not allow expressions in distinct")
     end
 
     defp from(sources, lock) do
@@ -437,7 +335,7 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp update_op(command, _key, _value, _sources, query) do
-      error!(query, "Unknown update operation #{inspect command} for MSSQL")
+      error!(query, "Unknown update operation #{inspect command} for TDS")
     end
 
     defp join(%Query{joins: []}, _sources), do: nil
@@ -544,7 +442,7 @@ if Code.ensure_loaded?(Tds) do
     defp expr({:&, _, [idx, fields, _counter]}, sources, query) do
       {table, name, schema} = elem(sources, idx)
       unless schema do
-        error!(query, "MSSQL requires a model when using selector #{inspect name} but " <>
+        error!(query, "TDS requires a model when using selector #{inspect name} but " <>
                              "only the table #{inspect table} was given. Please specify a schema " <>
                              "or specify exactly which fields from #{inspect name} you desire")
       end
@@ -579,7 +477,7 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp expr({:fragment, _, [kw]}, _sources, query) when is_list(kw) or tuple_size(kw) == 3 do
-      error!(query, "MSSQL adapter does not support keyword or interpolated fragments")
+      error!(query, "TDS adapter does not support keyword or interpolated fragments")
     end
 
     defp expr({:fragment, _, parts}, sources, query) do
@@ -722,304 +620,296 @@ if Code.ensure_loaded?(Tds) do
     end
 
     # DDL
+    alias Ecto.Migration.{Table, Index, Reference, Constraint}
 
-    alias Ecto.Migration.Table
-    alias Ecto.Migration.Index
-    alias Ecto.Migration.Reference
+    def execute_ddl({command, %Table{} = table, columns}) when command in [:create, :create_if_not_exists] do
+      prefix = table.prefix || "dbo"
+      table_structure =
+        case column_definitions(table, columns) ++ pk_definitions(columns, ", CONSTRAINT [PK_#{prefix}_#{table.name}] ") do
+          [] -> []
+          list -> [" (#{list})"]
+        end
 
-    @drops [:drop, :drop_if_exists]
-    @creates [:create, :create_if_not_exists]
-
-    def ddl_exists(%Table{name: name}=table) do
-      prefix = if table.prefix, do: table.prefix, else: 'dbo'
-      "SELECT * FROM information_schema.tables t WHERE t.table_name = '#{escape_string(to_string(name))}' " <> 
-      "AND t.table_schema = '#{escape_string(to_string(prefix))}'"
+      query = [[if_table_not_exists(command == :create_if_not_exists, table.name, prefix),
+        "CREATE TABLE ",
+        quote_table(prefix, table.name),
+        table_structure,
+        engine_expr(table.engine),
+        options_expr(table.options),
+        if_do(command == :create_if_not_exists, "END ")]]
+      Enum.map_join(query, "", &"#{&1}")
     end
 
-    def ddl_exists(%Index{name: name}) do
-      "SELECT * FROM sys.indexes i WHERE i.name = '#{escape_string(to_string(name))}'"
+    def execute_ddl({command, %Table{} = table}) when command in [:drop, :drop_if_exists] do
+      prefix = table.prefix || "dbo"
+      query = [[if_table_exists(command == :drop_if_exists, table.name, prefix),
+        "DROP TABLE ",
+        quote_table(prefix, table.name),
+        if_do(command == :drop_if_exists, "END ")]]
+      Enum.map_join(query, "", &"#{&1}")
     end
 
-    def execute_ddl(_, _ \\ nil)
-    def execute_ddl({command, %Table{}=table, columns}, _repo) when command in @creates do
-      options = options_expr(table.options)
-      unique_columns = Enum.reduce(columns, [], fn({_,name,type,opts}, acc) ->
-        if Keyword.get(opts, :unique) != nil, do: List.flatten([{name, type}|acc]), else: acc
-      end)
-      unique_constraints = unique_columns
-        |> Enum.map_join(", ", &unique_expr/1)
-      prefix = if command == :create_if_not_exists, do: "IF NOT EXISTS (" <> ddl_exists(table) <> ") BEGIN ", else: ""
-      postfix = if command == :create_if_not_exists, do: "END", else: ""
-      {table, composite_pk_def} = composite_pk_definition(table, columns)
-      prefix <>
-      "CREATE TABLE #{quote_table(table.prefix, table.name)} (#{column_definitions(table, columns)}#{composite_pk_def}" <>
-      if length(unique_columns) > 0, do: ", #{unique_constraints})", else: ")" <>
-      options <> postfix
+    def execute_ddl({:alter, %Table{} = table, changes}) do
+      prefix = table.prefix || "dbo"
+      query = [["ALTER TABLE ", quote_table(prefix, table.name), " ",
+        column_changes(table, changes),
+        pk_definitions(changes, ", ADD CONSTRAINT [PK_#{prefix}_#{table.name}] ")]]
+      Enum.map_join(query, "", &"#{&1}")
     end
 
-    def execute_ddl({command, %Table{name: name} = table}, _repo) when command in @drops do
-      prefix = if command == :drop_if_exists, do: "IF EXISTS (" <> ddl_exists(table) <> ") BEGIN ", else: ""
-      postfix = if command == :drop_if_exists, do: "END", else: ""
-      prefix <> "DROP TABLE #{quote_table(table.prefix, table.name)}" <> postfix
+    def execute_ddl({:create, %Index{} = index}) do
+      prefix = index.prefix || "dbo"
+      if index.where do
+        error!(nil, "TDS adapter does not support where in indexes yet.")
+      end
+
+      query = [["CREATE", if_do(index.unique, " UNIQUE"), " INDEX ",
+        quote_name(index.name),
+        " ON ",
+        quote_table(prefix, index.table), " ",
+        "(#{intersperse_map(index.columns, ", ", &index_expr/1)})",
+        if_do(index.using, [" USING ", to_string(index.using)]),
+        if_do(index.concurrently, " LOCK=NONE")]]
+      Enum.map_join(query, "", &"#{&1}")
     end
 
-    def execute_ddl({:alter, %Table{}=table, changes}, _repo) do
-      Enum.map_join(changes, "; ", fn(change) ->
-        "ALTER TABLE #{quote_table(table.prefix, table.name)} #{column_change(table, change)}"
-      end)
+    def execute_ddl({:create_if_not_exists, %Index{}}),
+      do: error!(nil, "TDS adapter does not support create if not exists for index")
+
+    def execute_ddl({:create, %Constraint{check: check}}) when is_binary(check),
+      do: error!(nil, "TDS adapter does not support check constraints")
+    def execute_ddl({:create, %Constraint{exclude: exclude}}) when is_binary(exclude),
+      do: error!(nil, "TDS adapter does not support exclusion constraints")
+
+    def execute_ddl({:drop, %Index{} = index}) do
+      prefix = index.prefix || "dbo"
+      query = [["DROP INDEX ",
+        quote_name(index.name),
+        " ON ", quote_table(prefix, index.table),
+        if_do(index.concurrently, " LOCK=NONE")]]
+      Enum.map_join(query, "", &"#{&1}")
     end
 
-    def execute_ddl({:rename, %Table{}=current_table, %Table{}=new_table}, _repo) do
-      case current_table.prefix do
-        nil ->
-          "EXEC sp_rename '#{current_table.name}', '#{new_table.name}'"
-        _ ->
-          "EXEC sp_rename '#{current_table.prefix}.#{current_table.name}', '#{new_table.prefix}.#{new_table.name}'"
+    def execute_ddl({:drop, %Constraint{}}),
+      do: error!(nil, "TDS adapter does not support constraints")
+
+    def execute_ddl({:drop_if_exists, %Index{}}),
+      do: error!(nil, "TDS adapter does not support drop if exists for index")
+
+    def execute_ddl({:rename, %Table{} = current_table, %Table{} = new_table}) do
+      current_table_prefix = current_table.prefix || "dbo"
+      new_table_prefix = new_table.prefix || "dbo"
+      query = [["exec sp_rename '", quote_table(current_table_prefix, current_table.name),
+        "', '", quote_table(new_table_prefix, new_table.name). "'"]]
+      Enum.map_join(query, "", &"#{&1}")
+    end
+
+    def execute_ddl({:rename, _table, _current_column, _new_column}) do
+      error!(nil, "TDS adapter does not support renaming columns yet.")
+    end
+
+    def execute_ddl(string) when is_binary(string), do: [string]
+
+    def execute_ddl(keyword) when is_list(keyword),
+      do: error!(nil, "TDS adapter does not support keyword lists in execute")
+
+    defp pk_definitions(columns, prefix) do
+      pks =
+        for {_, name, _, opts} <- columns,
+            opts[:primary_key],
+            do: name
+
+      case pks do
+        [] -> []
+        _  -> [[prefix, "PRIMARY KEY CLUSTERED (#{intersperse_map(pks, ", ", &quote_name/1)})"]]
       end
     end
-
-    def execute_ddl({:rename, %Table{}=current_table, current_column, new_column}, _repo) do
-      case current_table.prefix do
-        nil ->
-          "EXEC sp_rename '#{current_table.name}.#{current_column}', '#{new_column}', 'COLUMN'"
-        _ ->
-          "EXEC sp_rename '#{current_table.prefix}.#{current_table.name}.#{current_column}', '#{new_column}', 'COLUMN'"
-      end
-    end
-
-    def execute_ddl({command, %Index{}=index}, repo) when command in @creates do
-      filter =
-      if (repo.config[:filter_null_on_unique_indexes] == true and index.unique) do
-        " WHERE #{Enum.map_join(index.columns, " AND ", fn(column) -> "#{column} IS NOT NULL" end)}"
-      else
-        ""
-      end
-      prefix = if command == :create_if_not_exists, do: "IF NOT EXISTS (" <> ddl_exists(index) <> ") BEGIN ", else: ""
-      postfix = if command == :create_if_not_exists, do: "END", else: ""
-      assemble([prefix, "CREATE#{if index.unique, do: " UNIQUE"} INDEX",
-                quote_name(index.name), " ON ", quote_name(index.table),
-                " (#{Enum.map_join(index.columns, ", ", &index_expr/1)})",
-                filter, postfix])
-    end
-
-    def execute_ddl({command, %Index{}=index}, _repo) do
-      prefix = if command == :drop_if_exists, do: "IF EXISTS (" <> ddl_exists(index) <> ") BEGIN", else: nil
-      postfix = if command == :drop_if_exists, do: "END", else: nil
-      assemble([prefix, "DROP INDEX", quote_name(index.name), " ON ", quote_table(index.prefix, index.table), postfix])
-    end
-
-    def execute_ddl(default, _repo) when is_binary(default), do: default
-
-    def execute_ddl(keyword, _repo) when is_list(keyword),
-      do: error!(nil, "MSSQL adapter does not support keyword lists in execute")
 
     defp column_definitions(table, columns) do
-      Enum.map_join(columns, ", ", &column_definition(table, &1))
+      intersperse_map(columns, ", ", &column_definition(table, &1))
     end
 
     defp column_definition(table, {:add, name, %Reference{} = ref, opts}) do
-      assemble([
-        quote_name(name), reference_column_type(ref.type, opts), column_options(table, name, ref.type, opts), default_expr(opts, name, ref.type),
-        reference_expr(ref, table, name)
-      ])
+      [quote_name(name), " ", reference_column_type(ref.type, opts),
+      column_options(opts), reference_expr(ref, table, name)]
     end
 
-    defp column_definition(table, {:add, name, type, opts}) do
-      assemble([quote_name(name), column_type(type, opts), column_options(table, name, type, opts), serial_expr(type), default_expr(opts, name, type)])
+    defp column_definition(_table, {:add, name, type, opts}) do
+      [quote_name(name), " ", column_type(type, opts), column_options(opts)]
     end
 
-    # defp column_changes(table, columns) do
-    #   Enum.map_join(columns, ", ", &column_change(table, &1))
-    # end
+    defp column_changes(table, columns) do
+      intersperse_map(columns, ", ", &column_change(table, &1))
+    end
 
     defp column_change(table, {:add, name, %Reference{} = ref, opts}) do
-      assemble([
-        "ADD", quote_name(name), reference_column_type(ref.type, opts), column_options(table, name, ref.type, opts),
-        default_expr(opts, name, ref.type), reference_expr(ref, table, name)
-      ])
+      ["ADD ", quote_name(name), " ", reference_column_type(ref.type, opts),
+      column_options(opts), constraint_expr(ref, table, name)]
     end
 
-    defp column_change(table, {:add, name, type, opts}) do
-      assemble(["ADD", quote_name(name), column_type(type, opts), column_options(table, name, type, opts), default_expr(opts, name, type)])
+    defp column_change(_table, {:add, name, type, opts}) do
+      ["ADD ", quote_name(name), " ", column_type(type, opts), column_options(opts)]
     end
 
     defp column_change(table, {:modify, name, %Reference{} = ref, opts}) do
-        assemble([
-        "ALTER COLUMN", quote_name(name), reference_column_type(ref.type, opts), column_options(table, name, ref.type, opts),
-        constraint_expr(ref, table, name), modify_default(table.name, name, ref.type, opts)
-      ])
+      ["ALTER COLUMN ", quote_name(name), " ", reference_column_type(ref.type, opts),
+      column_options(opts), constraint_expr(ref, table, name)]
     end
 
-    defp column_change(table, {:modify, name, type, opts}) do
-      assemble(["ALTER COLUMN", quote_name(name), column_type(type, opts), column_options(table, name, type, opts), modify_default(table.name, name, type, opts)])
+    defp column_change(_table, {:modify, name, type, opts}) do
+      ["ALTER COLUMN ", quote_name(name), " ", column_type(type, opts), column_options(opts)]
     end
 
-    defp column_change(table, {:remove, name}) do
-      "IF (OBJECT_ID('DF_#{name}', 'D') IS NOT NULL) " <>
-        "BEGIN ALTER TABLE #{quote_name(table.name)} DROP CONSTRAINT DF_#{name} " <>
-      "END; DROP COLUMN #{quote_name(name)}"
-    end
+    defp column_change(_table, {:remove, name}), do: ["DROP ", quote_name(name)]
 
-    defp modify_default(table, name, type, opts) do
-      case Keyword.fetch(opts, :default) do
-        {:ok, val} ->
-          "; IF (OBJECT_ID('DF_#{name}', 'D') IS NOT NULL) " <>
-          "BEGIN " <>
-          "ALTER TABLE #{quote_name(table)} DROP CONSTRAINT DF_#{name} " <>
-          "END; " <>
-          "ALTER TABLE #{quote_name(table)} ADD #{default_expr({:ok, val}, name, type)} FOR #{quote_name(name)}"
-        :error ->
-          "; IF (OBJECT_ID('DF_#{name}', 'D') IS NOT NULL) " <>
-          "BEGIN " <>
-          "ALTER TABLE #{quote_name(table)} DROP CONSTRAINT DF_#{name} " <>
-          "END"
-      end
-    end
-
-    defp column_options(table, _name, _type, opts) do
-      null    = Keyword.get(opts, :null)
-			pk 			= (table.primary_key != :composite) and Keyword.get(opts, :primary_key, false)
-      if pk == true, do: null = false
-
-      [null_expr(null), pk_expr(pk)]
-    end
-
-    defp pk_expr(true), do: "PRIMARY KEY"
-    defp pk_expr(_), do: nil
-
-		defp composite_pk_definition(%Table{}=table, columns) do
-      pks = Enum.reduce(columns, [], fn({_, name, _, opts}, pk_acc) ->
-        case Keyword.get(opts, :primary_key, false) do
-          true -> [name|pk_acc]
-          false -> pk_acc
-        end
-      end)
-      if length(pks)>1 do
-        composite_pk_expr = pks |> Enum.reverse |> Enum.map_join(", ", &quote_name/1)
-        {%{table | primary_key: :composite}, ", PRIMARY KEY (" <> composite_pk_expr <> ")"}
-      else
-        {table, ""}
-      end
-    end
-
-    defp serial_expr(:serial), do: "IDENTITY"
-    defp serial_expr(_), do: nil
-
-    defp unique_expr({_name, type}) when type in [:string, :text] do
-      raise "UNIQUE Indexes are not allowed on string types"
-    end
-    defp unique_expr({name, _type}) when is_atom(name) do
-      "CONSTRAINT uc_#{name} UNIQUE (#{quote_name(name)})"
-    end
-    defp unique_expr(_), do: ""
-
-    defp null_expr(false), do: "NOT NULL"
-    defp null_expr(true), do: "NULL"
-    defp null_expr(_), do: "NULL"
-
-    defp default_expr(opts, name, type) when is_list(opts) do
+    defp column_options(opts) do
       default = Keyword.fetch(opts, :default)
-      default_expr(default, name, type)
+      null    = Keyword.get(opts, :null)
+      [default_expr(default), null_expr(null)]
     end
-    defp default_expr({:ok, nil}, _, _), do: ""
-    defp default_expr({:ok, boolean}, name, _type) when boolean == true or boolean == false,
-      do: "CONSTRAINT DF_#{name} DEFAULT #{if boolean == true, do: 1, else: 0}"
-    defp default_expr({:ok, literal}, name, _type) when is_binary(literal),
-      do: "CONSTRAINT DF_#{name} DEFAULT N'#{escape_string(literal)}'"
-    defp default_expr({:ok, literal}, name, _type) when is_number(literal),
-      do: "CONSTRAINT DF_#{name} DEFAULT #{literal}"
-    defp default_expr({:ok, {:fragment, expr}}, name, _type),
-      do: "CONSTRAINT DF_#{name} DEFAULT #{expr}"
-    defp default_expr({:ok, expr}, _name, type),
-      do: raise(ArgumentError, "unknown default `#{inspect expr}` for type `#{inspect type}`. " <>
-                               ":default may be a string, number, boolean, or a fragment(...)")
-    defp default_expr(:error, _, _),
+
+    defp null_expr(false), do: " NOT NULL"
+    defp null_expr(true), do: " NULL"
+    defp null_expr(_), do: []
+
+    defp default_expr({:ok, nil}),
+      do: " DEFAULT NULL"
+    defp default_expr({:ok, literal}) when is_binary(literal),
+      do: [" DEFAULT '", escape_string(literal), "'"]
+    defp default_expr({:ok, literal}) when is_number(literal) or is_boolean(literal),
+      do: [" DEFAULT ", to_string(literal)]
+    defp default_expr({:ok, {:fragment, expr}}),
+      do: [" DEFAULT ", expr]
+    defp default_expr(:error),
       do: []
 
     defp index_expr(literal) when is_binary(literal),
       do: literal
-    defp index_expr(literal),
-      do: literal
+    defp index_expr(literal), do: quote_name(literal)
+
+    defp engine_expr(storage_engine),
+      do: [""]
 
     defp options_expr(nil),
-      do: ""
+      do: []
     defp options_expr(keyword) when is_list(keyword),
-      do: error!(nil, "MSSQL adapter does not support keyword lists in :options")
+      do: error!(nil, "TDS adapter does not support keyword lists in :options")
     defp options_expr(options),
-      do: " #{options}"
+      do: [" ", to_string(options)]
 
-    # defp column_type(%Reference{} = ref, opts) do
-    #   "#{reference_column_type(ref.type, opts)} FOREIGN KEY (opts) REFERENCES " <>
-    #   "#{quote_name(ref.table)}(#{quote_name(ref.column)})" <>
-    #   reference_on_delete(ref.on_delete)
-    # end
-
-    defp column_type({:array, _type}, _opts),
-      do: raise "Array column type is not supported for MSSQL"
-    defp column_type(:uuid, _opts), do: "uniqueidentifier"
-    defp column_type(:binary_id, _opts), do: "uniqueidentifier"
     defp column_type(type, opts) do
-      pk        = Keyword.get(opts, :primary_key)
       size      = Keyword.get(opts, :size)
       precision = Keyword.get(opts, :precision)
       scale     = Keyword.get(opts, :scale)
       type_name = ecto_to_db(type)
 
       cond do
-        type == :serial         -> "bigint"
-        pk == true              -> "bigint"
-        size                    -> "#{type_name}(#{size})"
-        precision               -> "#{type_name}(#{precision},#{scale || 0})"
-        type == :string         -> "nvarchar(255)"
-        type == :map            -> "nvarchar(max)"
-        type == :text           -> "nvarchar(max)"
-        type == :binary         -> "varbinary(max)"
-        type == :boolean        -> "bit"
-        type == :naive_datetime -> "datetime"
-        true            -> "#{type_name}"
+        size            -> [type_name, "(", to_string(size), ")"]
+        precision       -> [type_name, "(", to_string(precision), ",", to_string(scale || 0), ")"]
+        type == :string -> [type_name, "(255)"]
+        true            -> type_name
       end
     end
 
-    defp reference_expr(%Reference{} = ref, table, name),
-      do: "CONSTRAINT #{reference_name(ref, table, name)} FOREIGN KEY (#{name}) " <>
-          "REFERENCES #{quote_name(ref.table)}(#{quote_name(ref.column)})" <>
-          reference_on_delete(ref.on_delete)
+    defp constraint_expr(%Reference{} = ref, table, name) do 
+      Enum.map_join([", ADD CONSTRAINT ", reference_name(ref, table, name),
+          " FOREIGN KEY (#{quote_name(name)})",
+          " REFERENCES ", quote_table(table.prefix || "dbo", ref.table),
+          "(#{quote_name(ref.column)})",
+          reference_on_delete(ref.on_delete), reference_on_update(ref.on_update)], "", &"#{&1}")
+    end
 
-    defp constraint_expr(%Reference{} = ref, table, name),
-      do: "; IF (OBJECT_ID('#{reference_name(ref, table, name)}', 'F') IS NOT NULL) " <>
-          "BEGIN " <>
-          "ALTER TABLE #{quote_name(table.name)} DROP CONSTRAINT #{reference_name(ref, table, name)} " <>
-          "END; " <>
-          "ALTER TABLE #{quote_name(table.name)} ADD CONSTRAINT #{reference_name(ref, table, name)} " <>
-          "FOREIGN KEY (#{quote_name(name)}) " <>
-          "REFERENCES #{quote_name(ref.table)}(#{quote_name(ref.column)})" <>
-          reference_on_delete(ref.on_delete)
+    defp reference_expr(%Reference{} = ref, table, name) do
+      Enum.map_join([", CONSTRAINT ", reference_name(ref, table, name),
+          " FOREIGN KEY (#{quote_name(name)})",
+          " REFERENCES ", quote_table(table.prefix || "dbo", ref.table),
+          "(#{quote_name(ref.column)})",
+          reference_on_delete(ref.on_delete), reference_on_update(ref.on_update)], "", &"#{&1}")
+    end
 
     defp reference_name(%Reference{name: nil}, table, column),
-      do: quote_name("#{table.name}_#{column}_fkey")
+      do: quote_name("FK_#{table.prefix || "dbo"}_#{table.name}_#{column}")
     defp reference_name(%Reference{name: name}, _table, _column),
       do: quote_name(name)
 
-    defp reference_column_type(:serial, _opts), do: "bigint"
-    defp reference_column_type(:integer, _opts), do: "bigint"
-    defp reference_column_type(type, opts), do: column_type(type, opts)
+    defp reference_column_type(:id, _opts),         do: "BIGINT"
+    defp reference_column_type(:serial, _opts),     do: "INT"
+    defp reference_column_type(:bigserial, _opts),  do: "BIGINT"
+    defp reference_column_type(type, opts),         do: column_type(type, opts)
 
     defp reference_on_delete(:nilify_all), do: " ON DELETE SET NULL"
     defp reference_on_delete(:delete_all), do: " ON DELETE CASCADE"
-    defp reference_on_delete(_), do: ""
+    defp reference_on_delete(_), do: []
+
+    defp reference_on_update(:nilify_all), do: " ON UPDATE SET NULL"
+    defp reference_on_update(:update_all), do: " ON UPDATE CASCADE"
+    defp reference_on_update(_), do: []
 
     ## Helpers
-    defp quote_table(nil, name),
-      do: quote_name(name)
 
-    defp quote_table(prefix, name),
-      do: quote_name(prefix) <> "." <> quote_name(name)
+    defp get_source(query, sources, ix, source) do
+      {expr, name, _schema} = elem(sources, ix)
+      {expr || paren_expr(source, sources, query), name}
+    end
 
+    defp quote_name(name)
     defp quote_name(name) when is_atom(name),
       do: quote_name(Atom.to_string(name))
+    defp quote_name(name) do
+      if String.contains?(name, "[") or String.contains?(name, "]") do
+        error!(nil, "bad field name #{inspect name} '[' and ']' are not permited")
+      end
+      "[#{name}]"
+    end
 
-    defp quote_name(name),
-      do: "[#{name}]"
+    defp quote_table(nil, name),    do: quote_table(name)
+    defp quote_table(prefix, name), do: Enum.map_join([quote_table(prefix), ".", quote_table(name)], "", &"#{&1}")
+
+    defp quote_table(name) when is_atom(name),
+      do: quote_table(Atom.to_string(name))
+    defp quote_table(name) do
+      if String.contains?(name, "[") or String.contains?(name, "]") do
+        error!(nil, "bad table name #{inspect name} '[' and ']' are not permited")
+      end
+      "[#{name}]"
+    end
+
+    defp intersperse_map(list, separator, mapper, acc \\ [])
+    defp intersperse_map([], _separator, _mapper, acc),
+      do: acc
+    defp intersperse_map([elem], _separator, mapper, acc),
+      do: [acc | mapper.(elem)]
+    defp intersperse_map([elem | rest], separator, mapper, acc),
+      do: intersperse_map(rest, separator, mapper, [acc, mapper.(elem), separator])
+
+    defp if_do(condition, value) do
+      if condition, do: value, else: []
+    end
+
+    defp escape_string(value) when is_binary(value) do
+      value
+      |> :binary.replace("'", "''", [:global])
+    end
+
+    defp ecto_cast_to_db(type, query), do: ecto_to_db(type, query)
+
+    defp ecto_to_db(type, query \\ nil)
+    defp ecto_to_db({:array, _}, query),
+      do: error!(query, "Array type is not supported by TDS")
+    defp ecto_to_db(:id, _query),             do: "bigint"
+    defp ecto_to_db(:serial, _query),         do: "int"
+    defp ecto_to_db(:bigserial, _query),      do: "bigint"
+    defp ecto_to_db(:binary_id, _query),      do: "uniqueidentifier"
+    defp ecto_to_db(:boolean, _query),        do: "bit"
+    defp ecto_to_db(:string, _query),         do: "nvarchar"
+    defp ecto_to_db(:float, _query),          do: "float"
+    defp ecto_to_db(:binary, _query),         do: "varbinary"
+    defp ecto_to_db(:uuid, _query),           do: "uniqueidentifier"
+    defp ecto_to_db(:map, _query),            do: "nvarchar(max)"
+    defp ecto_to_db({:map, :string}, _query), do: "nvarchar(max)"
+    defp ecto_to_db(:utc_datetime, _query),   do: "datetime2"
+    defp ecto_to_db(:naive_datetime, _query), do: "datetime"
+    defp ecto_to_db(other, _query),           do: Atom.to_string(other)
 
     defp assemble(list) do
       list
@@ -1028,30 +918,44 @@ if Code.ensure_loaded?(Tds) do
       |> Enum.join(" ")
     end
 
-    defp escape_string(value) when is_binary(value) do
-      :binary.replace(value, "'", "''", [:global])
+    defp error!(nil, message) do
+      raise ArgumentError, message
+    end
+    defp error!(query, message) do
+      raise Ecto.QueryError, query: query, message: message
     end
 
-    defp ecto_to_db(:id),         do: "bigint"
-    defp ecto_to_db(:binary_id),  do: "uniqueidentifier"
-    defp ecto_to_db(:string),     do: "nvarchar"
-    defp ecto_to_db(:binary),     do: "varbinary"
-    defp ecto_to_db(:datetime),   do: "datetime2"
-    defp ecto_to_db(:map),        do: "nvarchar"
-    defp ecto_to_db(:boolean),    do: "bit"
-    defp ecto_to_db({:map, :string}), do: "nvarchar"
-    defp ecto_to_db(other),       do: Atom.to_string(other)
+    defp if_table_not_exists(condition, name, prefix \\ "dbo") do
+      if condition do
+        query_segment = ["IF NOT EXISTS ( ",
+                        "SELECT * ",
+                        "FROM [INFORMATION_SCHEMA].[TABLES] info ",
+                        "WHERE info.[TABLE_NAME] = '#{name}' ",
+                        "AND info.[TABLE_SCHEMA] = '#{prefix}' ",
+                        ") BEGIN "]
+        Enum.map_join(query_segment, "", &"#{&1}")
+      else
+        []
+      end
+    end
+
+    defp if_table_exists(condition, name, prefix \\ "dbo") do
+      if condition do
+        query_segment = ["IF EXISTS ( ",
+                        "SELECT * ",
+                        "FROM [INFORMATION_SCHEMA].[TABLES] info ",
+                        "WHERE info.[TABLE_NAME] = '#{name}' ",
+                        "AND info.[TABLE_SCHEMA] = '#{prefix}' ",
+                        ") BEGIN "]
+        Enum.map_join(query_segment, "", &"#{&1}")
+      else
+        []
+      end
+    end
 
     def uuid(<<v1::32, v2::16, v3::16, v4::64>>) do
       <<v1::little-signed-32, v2::little-signed-16, v3::little-signed-16, v4::signed-64>>
     end
-
-    defp error!(nil, message) do
-      raise ArgumentError, message
+      
     end
-
-    defp error!(query, message) do
-      raise Ecto.QueryError, query: query, message: message
-    end
-  end
 end

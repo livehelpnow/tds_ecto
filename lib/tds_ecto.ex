@@ -109,7 +109,7 @@ defmodule Tds.Ecto do
   def storage_down(opts) do
     database = Keyword.fetch!(opts, :database) || raise ":database is nil in repository configuration"
 
-    case run_query(opts, "DROP DATABASE [#{opts[:database]}]") do
+    case run_query(opts, "DROP DATABASE [#{database}]") do
       {:ok, _} ->
         :ok
       {:error, %Tds.Error{mssql: %{number: 3701}}} ->
@@ -152,7 +152,6 @@ defmodule Tds.Ecto do
     opts =
       opts
       |> Keyword.delete(:name)
-      |> Keyword.put(:database, "master")
       |> Keyword.put(:hostname, hostname)
       |> Keyword.put(:pool, DBConnection.Connection)
       |> Keyword.put(:backoff_type, :stop)

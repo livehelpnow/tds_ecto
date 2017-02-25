@@ -310,4 +310,10 @@ defmodule Tds.Ecto.Migration do
     end
   end
 
+  def uuid(<<v1::32, v2::16, v3::16, v4::64>>) do
+    <<v1::little-signed-32, v2::little-signed-16, v3::little-signed-16, v4::signed-64>>
+  end
+
+  
+
 end
