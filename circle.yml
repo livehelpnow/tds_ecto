@@ -12,17 +12,16 @@ dependencies:
     - asdf plugin-add elixir https://github.com/HashNuke/asdf-elixir.git
     - erlang_version=$(awk '/erlang/ { print $2 }' .tool-versions) && asdf install erlang ${erlang_version}
     - elixir_version=$(awk '/elixir/ { print $2 }' .tool-versions) && asdf install elixir ${elixir_version}
-    - mix local.hex --force
-    - mix local.rebar --force
-    - yes | mix deps.get
     - curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
     - curl https://packages.microsoft.com/config/ubuntu/16.04/prod.list | sudo tee /etc/apt/sources.list.d/msprod.list
     - sudo apt-get update
     - sudo apt-get install mssql-tools unixodbc-dev
     - echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
     - source ~/.bashrc 
-    - docker run -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=Som320923!!!2932#ePassword2938474' -p 1433:1433 -d microsoft/mssql-server-linux
-    - sqlcmd -S localhost -U SA -P Som320923!!!2932#ePassword2938474 -Q "CREATE LOGIN mssql WITH PASSWORD = 'mssql'; CREATE USER mssql FOR LOGIN mssql; sp_addsrvrolemember 'mssql', 'sysadmin'"
+    - docker run -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=${SQL_PASSWORD}' -p 1433:1433 -d microsoft/mssql-server-linux
+    - mix local.hex --force
+    - mix local.rebar --force
+    - mix deps.get
   cache_directories:
     - ~/.asdf
     - ~/.mix

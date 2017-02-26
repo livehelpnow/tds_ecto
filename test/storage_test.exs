@@ -6,8 +6,8 @@ defmodule Tds.Ecto.StorageTest do
   def params do
     [database: "storage_mgt",
      pool: Ecto.Adapters.SQL.Sandbox,
-     username: "mssql",
-     password: "mssql",
+     username: "sa",
+     password: System.get_env("SQL_PASSWORD") || "mssql",
      hostname: "localhost"]
   end
 
