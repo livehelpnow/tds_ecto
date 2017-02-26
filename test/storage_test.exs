@@ -49,19 +49,24 @@ defmodule Tds.Ecto.StorageTest do
   test "storage up (twice in a row)" do
     assert :ok == Tds.Ecto.storage_up(params())
     assert {:error, :already_up} == Tds.Ecto.storage_up(params())
-    {_, 0} = drop_database(params())
+    # circle-cli has ubuntu 14.4 which can't run sqlcmd...'
+    # {_, 0} = drop_database(params()) 
+    assert Tds.Ecto.storage_down(params()) == :ok
   end
 
   test "storage down (twice in a row)" do
-    {_, 0} = create_database(params())
+    # {_, 0} = create_database(params())
+    assert :ok == Tds.Ecto.storage_up(params())
     assert :ok == Tds.Ecto.storage_down(params())
     assert {:error, :already_down} == Tds.Ecto.storage_down(params())
   end
   
   test "storage up and down (wrong credentials)" do
     refute Tds.Ecto.storage_up(wrong_params()) == :ok
-    {_, 0} = create_database(params())
+    assert Tds.Ecto.storage_up(params()) == :ok
+    # {_, 0} = create_database(params())
     refute Tds.Ecto.storage_down(wrong_params()) == :ok
-    {_, 0} = drop_database(params())
+    assert Tds.Ecto.storage_down(params()) == :ok
+    # {_, 0} = drop_database(params())
   end
 end

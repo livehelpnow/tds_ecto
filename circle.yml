@@ -18,7 +18,7 @@ dependencies:
     - sudo apt-get install mssql-tools unixodbc-dev
     - echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
     - source ~/.bashrc 
-    - docker run -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=${SQL_PASSWORD}' -p 1433:1433 -d microsoft/mssql-server-linux
+    - docker run -d -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=${SQL_PASSWORD}' -p 1433:1433 --name=sqlserver --restart=no --bind 127.0.0.1 microsoft/mssql-server-linux
     - mix local.hex --force
     - mix local.rebar --force
     - mix deps.get
@@ -34,3 +34,4 @@ general:
 test:
   override:
     - mix test
+    - docker rm -f sqlserver
