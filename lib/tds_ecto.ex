@@ -93,7 +93,7 @@ defmodule Tds.Ecto do
       ~s(CREATE DATABASE [#{database}])
       |> concat_if(opts[:lc_collate], &"COLLATE=#{&1}")
 
-    case run_query(opts, command) do
+    case run_query(Keyword.put(opts, :database, "master"), command) do
       {:ok, _} -> :ok
       {:error, %Tds.Error{mssql: %{number: 1801}}} ->
         {:error, :already_up}
@@ -109,7 +109,7 @@ defmodule Tds.Ecto do
   def storage_down(opts) do
     database = Keyword.fetch!(opts, :database) || raise ":database is nil in repository configuration"
 
-    case run_query(opts, "DROP DATABASE [#{database}]") do
+    case run_query(Keyword.put(opts, :database, "master"), "DROP DATABASE [#{database}]") do
       {:ok, _} ->
         :ok
       {:error, %Tds.Error{mssql: %{number: 3701}}} ->

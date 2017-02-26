@@ -39,6 +39,8 @@ if Code.ensure_loaded?(Tds) do
       opts = Keyword.put(opts, :parameters, params)
 
 			case DBConnection.prepare_execute(pid, query, params, opts) do
+        {:ok, _, %Tds.Result{columns: nil, command: nil, num_rows: 1, rows: []}} ->
+          {:ok,  %Tds.Result{columns: nil, command: nil, num_rows: 1, rows: nil}}
         {:ok, _, query} -> {:ok, query}
         {:error, _} = err -> err
       end
@@ -206,32 +208,47 @@ if Code.ensure_loaded?(Tds) do
 
       assemble([delete, from, join, where])
     end
+    
+    # def insert(prefix, table, fields, returning) do
+    #   values =
+    #     if fields == [] do
+    #       returning(returning, "INSERTED") <>
+    #       "DEFAULT VALUES"
+    #     else
+    #       "(" <> Enum.map_join(fields, ", ", &quote_name/1) <> ")" <>
+    #       " " <> returning(returning, "INSERTED") <>
+    #       "VALUES (" <> Enum.map_join(1..length(fields), ", ", &"@#{&1}") <> ")"
+    #     end
+    #   "INSERT INTO #{quote_table(prefix, table)} " <> values
+    # end
     def insert(prefix, table, header, rows, on_conflict, returning) do
-      Logger.info(inspect(["OVDE", prefix, table, header, rows, on_conflict, returning]))
-    end
-    def insert(prefix, table, fields, returning) do
+      [] = on_conflict(on_conflict, header)
       values =
-        if fields == [] do
+        if header == [] do
           returning(returning, "INSERTED") <>
-          "DEFAULT VALUES"
+            "DEFAULT VALUES"
         else
-          "(" <> Enum.map_join(fields, ", ", &quote_name/1) <> ")" <>
-          " " <> returning(returning, "INSERTED") <>
-          "VALUES (" <> Enum.map_join(1..length(fields), ", ", &"@#{&1}") <> ")"
+          "(" <> Enum.map_join(header, ", ", &quote_name/1) <> ")" <>
+            " " <> returning(returning, "INSERTED") <>
+            "VALUES " <> insert_all(rows, 1, "")
         end
       "INSERT INTO #{quote_table(prefix, table)} " <> values
     end
-    def insert(prefix, table, header, rows, returning) do
-      values =
-      if header == [] do
-        returning(returning, "INSERTED") <>
-          "DEFAULT VALUES"
-      else
-        "(" <> Enum.map_join(header, ", ", &quote_name/1) <> ")" <>
-          " " <> returning(returning, "INSERTED") <>
-          "VALUES " <> insert_all(rows, 1, "")
-      end
-      "INSERT INTO #{quote_table(prefix, table)} " <> values
+
+    defp on_conflict({_, _, [_ | _]}, _header) do
+      error!(nil, "The :conflict_target option is not supported in insert/insert_all by TDS")
+    end
+    defp on_conflict({:raise, _, []}, _header) do
+      []
+    end
+    defp on_conflict({:nothing, _, []}, [field | _]) do
+      error!(nil, "The :nothing option is not supported in insert/insert_all by TDS")
+    end
+    defp on_conflict({:replace_all, _, []}, header) do
+      error!(nil, "The :replace_all option is not supported in insert/insert_all by TDS")
+    end
+    defp on_conflict({query, _, []}, _header) do
+      error!(nil, "The query as option for on_conflict is not supported in insert/insert_all by TDS yet.")
     end
 
 		defp insert_all([row|rows], counter, acc) do
