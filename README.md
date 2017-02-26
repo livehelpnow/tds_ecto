@@ -2,6 +2,8 @@
 
 MSSQL / TDS Adapter for Ecto
 
+[![CircleCI](https://circleci.com/gh/mjaric/tds_ecto.svg?style=svg)](https://circleci.com/gh/mjaric/tds_ecto)
+
 This branch is an alpha version that currently aims to support Ecto 2.0. Please check the issues tagged ecto2 for a more complete overview. This branch should not yet be considered stable or used in production.
 
 ## Example
