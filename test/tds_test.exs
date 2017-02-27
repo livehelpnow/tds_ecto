@@ -51,185 +51,199 @@ defmodule Tds.Ecto.TdsTest do
     import Ecto.Changeset
     import Ecto.Query
 
+    @schema_prefix "foo"
     schema "model3" do
       field :binary, :binary
     end
   end
 
-  # defp normalize(query, operation \\ :all) do
-  #   {query, _params, _key} = Ecto.Query.Planner.prepare(query, operation, Tds.Ecto, 0)
-  #   Ecto.Query.Planner.normalize(query, operation, Tds.Ecto, 0)
-  # end
+  defp normalize(query, operation \\ :all) do
+    {query, _params, _key} = Ecto.Query.Planner.prepare(query, operation, Tds.Ecto, 0)
+    Ecto.Query.Planner.normalize(query, operation, Tds.Ecto, 0)
+  end
 
-  # test "from" do
-  #   query = Model |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0}
-  # end
+  test "from" do
+    query = Model |> select([r], r.x) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0}
+  end
 
-  # test "from without model" do
-  #   query = "posts" |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT p0.[x] FROM [posts] AS p0}
+  test "from Model3 with schema foo" do
+    query = Model3 |> select([r], r.binary) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[binary] FROM [foo].[model3] AS m0}
+  end
 
-  #   assert_raise Ecto.QueryError, ~r"MSSQL requires a model", fn ->
-  #     SQL.all from(p in "posts", select: p) |> normalize()
-  #   end
-  # end
-  # # test "from with schema source" do
-  # #   query = "public.posts" |> select([r], r.x) |> normalize
-  # #   assert SQL.all(query) == ~s{SELECT p0.[x] FROM [public].[posts] AS p0}
-  # # end
+  test "from without model" do
+    query = "model" |> select([r], r.x) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0}
 
-  # test "select" do
-  #   query = Model |> select([r], {r.x, r.y}) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x], m0.[y] FROM [model] AS m0}
+    assert_raise Ecto.QueryError, ~r"TDS adapter requires a model", fn ->
+      SQL.all from(p in "posts", select: p) |> normalize()
+    end
+  end
+  test "from with schema source" do
+    query = "public.posts" |> select([r], r.x) |> normalize
+    assert SQL.all(query) == ~s{SELECT p0.[x] FROM [public].[posts] AS p0}
+  end
+  test "from with schema source, linked database" do
+    query = "externaldb.public.posts" |> select([r], r.x) |> normalize
+    assert_raise ArgumentError, ~r"TDS addapter do not support query of external database or linked server table", fn ->
+      SQL.all(query)
+    end
+  end
 
-  #   query = Model |> select([r], [r.x, r.y]) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x], m0.[y] FROM [model] AS m0}
-  # end
+  test "select" do
+    query = Model |> select([r], {r.x, r.y}) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x], m0.[y] FROM [model] AS m0}
 
-  # test "distinct" do
-  #   query = Model |> distinct([r], true) |> select([r], {r.x, r.y}) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT DISTINCT m0.[x], m0.[y] FROM [model] AS m0}
+    query = Model |> select([r], [r.x, r.y]) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x], m0.[y] FROM [model] AS m0}
+  end
 
-  #   query = Model |> distinct([r], false) |> select([r], {r.x, r.y}) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x], m0.[y] FROM [model] AS m0}
+  test "distinct" do
+    query = Model |> distinct([r], true) |> select([r], {r.x, r.y}) |> normalize
+    assert SQL.all(query) == ~s{SELECT DISTINCT m0.[x], m0.[y] FROM [model] AS m0}
 
-  #   query = Model |> distinct(true) |> select([r], {r.x, r.y}) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT DISTINCT m0.[x], m0.[y] FROM [model] AS m0}
+    query = Model |> distinct([r], false) |> select([r], {r.x, r.y}) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x], m0.[y] FROM [model] AS m0}
 
-  #   query = Model |> distinct(false) |> select([r], {r.x, r.y}) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x], m0.[y] FROM [model] AS m0}
+    query = Model |> distinct(true) |> select([r], {r.x, r.y}) |> normalize
+    assert SQL.all(query) == ~s{SELECT DISTINCT m0.[x], m0.[y] FROM [model] AS m0}
 
-  #   assert_raise Ecto.QueryError, ~r"MSSQL does not allow expressions in distinct", fn ->
-  #     query = Model |> distinct([r], [r.x, r.y]) |> select([r], {r.x, r.y}) |> normalize
-  #     SQL.all(query)
-  #   end
-  # end
+    query = Model |> distinct(false) |> select([r], {r.x, r.y}) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x], m0.[y] FROM [model] AS m0}
+
+    assert_raise Ecto.QueryError, ~r"MSSQL does not allow expressions in distinct", fn ->
+      query = Model |> distinct([r], [r.x, r.y]) |> select([r], {r.x, r.y}) |> normalize
+      SQL.all(query)
+    end
+  end
 
   # test "where" do
   #   query = Model |> where([r], r.x == 42) |> where([r], r.y != 43) |> select([r], r.x) |> normalize
   #   assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 WHERE (m0.[x] = 42) AND (m0.[y] != 43)}
   # end
 
-  # test "order by" do
-  #   query = Model |> order_by([r], r.x) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 ORDER BY m0.[x]}
+  test "order by" do
+    query = Model |> order_by([r], r.x) |> select([r], r.x) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 ORDER BY m0.[x]}
 
-  #   query = Model |> order_by([r], [r.x, r.y]) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 ORDER BY m0.[x], m0.[y]}
+    query = Model |> order_by([r], [r.x, r.y]) |> select([r], r.x) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 ORDER BY m0.[x], m0.[y]}
 
-  #   query = Model |> order_by([r], [asc: r.x, desc: r.y]) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 ORDER BY m0.[x], m0.[y] DESC}
+    query = Model |> order_by([r], [asc: r.x, desc: r.y]) |> select([r], r.x) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 ORDER BY m0.[x], m0.[y] DESC}
 
-  #   query = Model |> order_by([r], []) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0}
-  # end
+    query = Model |> order_by([r], []) |> select([r], r.x) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0}
+  end
 
-  # test "limit and offset" do
-  #   query = Model |> limit([r], 3) |> select([], 0) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT TOP(3) 0 FROM [model] AS m0}
+  test "limit and offset" do
+    query = Model |> limit([r], 3) |> select([], 0) |> normalize
+    assert SQL.all(query) == ~s{SELECT TOP(3) 0 FROM [model] AS m0}
 
-  #   query = Model |> order_by([r], r.x) |> offset([r], 5) |> select([], 0) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0 ORDER BY m0.[x] OFFSET 5 ROW}
+    query = Model |> order_by([r], r.x) |> offset([r], 5) |> select([], 0) |> normalize
+    assert_raise Ecto.QueryError, fn ->
+      SQL.all(query)
+    end
 
-  #   query = Model |> order_by([r], r.x) |> offset([r], 5) |> limit([r], 3) |> select([], 0) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT TOP(3) 0 FROM [model] AS m0 ORDER BY m0.[x] OFFSET 5 ROW}
+    query = Model |> order_by([r], r.x) |> offset([r], 5) |> limit([r], 3) |> select([], 0) |> normalize
+    assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0 ORDER BY m0.[x] OFFSET 5 ROW FETCH NEXT 3 ROWS ONLY}
 
-  #   query = Model |> offset([r], 5) |> limit([r], 3) |> select([], 0) |> normalize
-  #   assert_raise Ecto.QueryError, fn ->
-  #     SQL.all(query)
-  #   end
-  # end
+    query = Model |> offset([r], 5) |> limit([r], 3) |> select([], 0) |> normalize
+    assert_raise Ecto.QueryError, fn ->
+      SQL.all(query)
+    end
+  end
 
-  # test "lock" do
-  #   query = Model |> lock("WITH(NOLOCK)") |> select([], 0) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0 WITH(NOLOCK)}
-  # end
+  test "lock" do
+    query = Model |> lock("WITH(NOLOCK)") |> select([], 0) |> normalize
+    assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0 WITH(NOLOCK)}
+  end
 
   # # TODO
   # # These need to be updated
-  # # test "string escape" do
-  # #   query = Model |> select([], "'\\  ") |> normalize
-  # #   assert SQL.all(query) == ~s{SELECT '''\\\\  ' FROM [model] AS m0}
+  # test "string escape" do
+  #   query = Model |> select([], "'\\  ") |> normalize
+  #   assert SQL.all(query) == ~s{SELECT '''\\\\  ' FROM [model] AS m0}
 
-  # #   query = Model |> select([], "'") |> normalize
-  # #   assert SQL.all(query) == ~s{SELECT '''' FROM [model] AS m0}
-  # # end
-
-  # test "binary ops" do
-  #   query = Model |> select([r], r.x == 2) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] = 2 FROM [model] AS m0}
-
-  #   query = Model |> select([r], r.x != 2) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] != 2 FROM [model] AS m0}
-
-  #   query = Model |> select([r], r.x <= 2) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] <= 2 FROM [model] AS m0}
-
-  #   query = Model |> select([r], r.x >= 2) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] >= 2 FROM [model] AS m0}
-
-  #   query = Model |> select([r], r.x < 2) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] < 2 FROM [model] AS m0}
-
-  #   query = Model |> select([r], r.x > 2) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] > 2 FROM [model] AS m0}
+  #   query = Model |> select([], "'") |> normalize
+  #   assert SQL.all(query) == ~s{SELECT '''' FROM [model] AS m0}
   # end
 
-  # test "is_nil" do
-  #   query = Model |> select([r], is_nil(r.x)) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] IS NULL FROM [model] AS m0}
+  test "binary ops" do
+    query = Model |> select([r], r.x == 2) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] = 2 FROM [model] AS m0}
 
-  #   query = Model |> select([r], not is_nil(r.x)) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT NOT (m0.[x] IS NULL) FROM [model] AS m0}
-  # end
+    query = Model |> select([r], r.x != 2) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] != 2 FROM [model] AS m0}
 
-  # test "fragments" do
-  #   query = Model
-  #     |> select([r], fragment("lower(?)", r.x))
-  #     |> normalize
-  #   assert SQL.all(query) == ~s{SELECT lower(m0.[x]) FROM [model] AS m0}
+    query = Model |> select([r], r.x <= 2) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] <= 2 FROM [model] AS m0}
 
-  #   value = 13
-  #   query = Model |> select([r], fragment("lower(?)", ^value)) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT lower(@1) FROM [model] AS m0}
+    query = Model |> select([r], r.x >= 2) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] >= 2 FROM [model] AS m0}
 
-  #   # query = Model |> select([], fragment(title: 2)) |> normalize
-  #   # assert_raise ArgumentError, fn ->
-  #   #   SQL.all(query)
-  #   # end
-  # end
+    query = Model |> select([r], r.x < 2) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] < 2 FROM [model] AS m0}
 
-  # test "literals" do
-  #   query = Model |> select([], nil) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT NULL FROM [model] AS m0}
+    query = Model |> select([r], r.x > 2) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] > 2 FROM [model] AS m0}
+  end
 
-  #   query = Model |> select([], true) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT 1 FROM [model] AS m0}
+  test "is_nil" do
+    query = Model |> select([r], is_nil(r.x)) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] IS NULL FROM [model] AS m0}
 
-  #   query = Model |> select([], false) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0}
+    query = Model |> select([r], not is_nil(r.x)) |> normalize
+    assert SQL.all(query) == ~s{SELECT NOT (m0.[x] IS NULL) FROM [model] AS m0}
+  end
 
-  #   # query = Model |> select([], "abc") |> normalize
-  #   # assert SQL.all(query) == ~s{SELECT 'abc' FROM [model] AS m0}
+  test "fragments" do
+    query = Model
+      |> select([r], fragment("lower(?)", r.x))
+      |> normalize
+    assert SQL.all(query) == ~s{SELECT lower(m0.[x]) FROM [model] AS m0}
 
-  #   query = Model |> select([], 123) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT 123 FROM [model] AS m0}
+    value = 13
+    query = Model |> select([r], fragment("lower(?)", ^value)) |> normalize
+    assert SQL.all(query) == ~s{SELECT lower(@1) FROM [model] AS m0}
 
-  #   query = Model |> select([], 123.0) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT 123.0 FROM [model] AS m0}
-  # end
+    # query = Model |> select([], fragment(title: 2)) |> normalize
+    # assert_raise ArgumentError, fn ->
+    #   SQL.all(query)
+    # end
+  end
 
-  # # test "tagged type" do
-  # #   query = Model |> select([], type(^"601d74e4-a8d3-4b6e-8365-eddb4c893327", Ecto.UUID)) |> normalize
-  # #   assert SQL.all(query) == ~s{SELECT CAST(? AS uniqueidentifier) FROM [model] AS m0}
-  # # end
+  test "literals" do
+    query = Model |> select([], nil) |> normalize
+    assert SQL.all(query) == ~s{SELECT NULL FROM [model] AS m0}
 
-  # test "nested expressions" do
-  #   z = 123
-  #   query = from(r in Model, []) |> select([r], r.x > 0 and (r.y > ^(-z)) or true) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT ((m0.[x] > 0) AND (m0.[y] > @1)) OR 1 FROM [model] AS m0}
-  # end
+    query = Model |> select([], true) |> normalize
+    assert SQL.all(query) == ~s{SELECT 1 FROM [model] AS m0}
+
+    query = Model |> select([], false) |> normalize
+    assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0}
+
+    # query = Model |> select([], "abc") |> normalize
+    # assert SQL.all(query) == ~s{SELECT 'abc' FROM [model] AS m0}
+
+    query = Model |> select([], 123) |> normalize
+    assert SQL.all(query) == ~s{SELECT 123 FROM [model] AS m0}
+
+    query = Model |> select([], 123.0) |> normalize
+    assert SQL.all(query) == ~s{SELECT 123.0 FROM [model] AS m0}
+  end
+
+  test "tagged type" do
+    query = Model |> select([], type(^"601d74e4-a8d3-4b6e-8365-eddb4c893327", Ecto.UUID)) |> normalize
+    assert SQL.all(query) == ~s{SELECT CAST(@1 AS uniqueidentifier) FROM [model] AS m0}
+  end
+
+  test "nested expressions" do
+    z = 123
+    query = from(r in Model, []) |> select([r], r.x > 0 and (r.y > ^(-z)) or true) |> normalize
+    assert SQL.all(query) == ~s{SELECT ((m0.[x] > 0) AND (m0.[y] > @1)) OR 1 FROM [model] AS m0}
+  end
 
   # test "in expression" do
   #   query = Model |> select([e], 1 in []) |> normalize
@@ -238,10 +252,10 @@ defmodule Tds.Ecto.TdsTest do
   #   query = Model |> select([e], 1 in [1,e.x,3]) |> normalize
   #   assert SQL.all(query) == ~s{SELECT 1 IN (1,m0.[x],3) FROM [model] AS m0}
 
-  #   # query = Model |> select([e], 1 in ^[]) |> normalize
+  #   query = Model |> select([e], 1 in ^[]) |> normalize
   #   # SelectExpr fields in Ecto v1 == [{:in, [], [1, []]}]
   #   # SelectExpr fields in Ecto v2 == [{:in, [], [1, {:^, [], [0, 0]}]}]
-  #   # assert SQL.all(query) == ~s{SELECT 0=1 FROM [model] AS m0}
+  #   assert SQL.all(query) == ~s{SELECT 0=1 FROM [model] AS m0}
 
   #   query = Model |> select([e], 1 in ^[1, 2, 3]) |> normalize
   #   assert SQL.all(query) == ~s{SELECT 1 IN (@1,@2,@3) FROM [model] AS m0}

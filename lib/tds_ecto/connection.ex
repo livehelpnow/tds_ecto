@@ -76,7 +76,7 @@ if Code.ensure_loaded?(Tds) do
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}) when value == "",                do: {value, :string}
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}),                                 do: {value, :binary}
     defp prepare_param(%Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime}) when us > 0, do: {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
-    defp prepare_param(%Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime}),             do: {{{y,m,d},{hh,mm,ss}}, :datetime}
+    defp prepare_param(%Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,_}}, type: :datetime}),             do: {{{y,m,d},{hh,mm,ss}}, :datetime}
     defp prepare_param(%Ecto.Query.Tagged{value: nil, type: type}) when type in [:binary_id, :uuid],     do: {nil, :binary}
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: type}) when type in [:binary_id, :uuid]    do
       if String.length(value) > 16 do
@@ -241,13 +241,13 @@ if Code.ensure_loaded?(Tds) do
     defp on_conflict({:raise, _, []}, _header) do
       []
     end
-    defp on_conflict({:nothing, _, []}, [field | _]) do
+    defp on_conflict({:nothing, _, []}, [_field | _]) do
       error!(nil, "The :nothing option is not supported in insert/insert_all by TDS")
     end
-    defp on_conflict({:replace_all, _, []}, header) do
+    defp on_conflict({:replace_all, _, []}, _header) do
       error!(nil, "The :replace_all option is not supported in insert/insert_all by TDS")
     end
-    defp on_conflict({query, _, []}, _header) do
+    defp on_conflict({_query, _, []}, _header) do
       error!(nil, "The query as option for on_conflict is not supported in insert/insert_all by TDS yet.")
     end
 
@@ -325,7 +325,7 @@ if Code.ensure_loaded?(Tds) do
     defp distinct(%Query{distinct: %QueryExpr{expr: true}}, _sources),  do: "DISTINCT "
     defp distinct(%Query{distinct: %QueryExpr{expr: false}}, _sources), do: ""
     defp distinct(%Query{distinct: %QueryExpr{expr: _exprs}} = query, _sources) do
-      error!(query, "TDS does not allow expressions in distinct")
+      error!(query, "MSSQL does not allow expressions in distinct")
     end
 
     defp from(sources, lock) do
@@ -459,7 +459,7 @@ if Code.ensure_loaded?(Tds) do
     defp expr({:&, _, [idx, fields, _counter]}, sources, query) do
       {table, name, schema} = elem(sources, idx)
       unless schema do
-        error!(query, "TDS requires a model when using selector #{inspect name} but " <>
+        error!(query, "TDS adapter requires a model when using selector #{inspect name} but " <>
                              "only the table #{inspect table} was given. Please specify a schema " <>
                              "or specify exactly which fields from #{inspect name} you desire")
       end
@@ -556,7 +556,7 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp expr(%Ecto.Query.Tagged{value: binary, type: :uuid}, _sources, _query) when is_binary(binary) do
-      if String.contains?(binary, "-"), do: {:ok, binary} = Ecto.UUID.dump(binary)
+      {:ok, binary} = if String.contains?(binary, "-"), do: Ecto.UUID.dump(binary), else: {:ok, binary}
       uuid(binary)
     end
 
@@ -625,7 +625,11 @@ if Code.ensure_loaded?(Tds) do
         case elem(sources, pos) do
           {table, model} ->
             name = String.first(table) <> Integer.to_string(pos)
-            {quote_table(prefix, table), name, model}
+            case String.split(table, ".") do
+              [table]         -> {quote_table(prefix, table), name, model}
+              [prefix, table] -> {quote_table(prefix, table), name, model}
+              _ -> error!(nil, "TDS addapter do not support query of external database or linked server table. Please create SYNONIM!")
+            end
           {:fragment, _, _} ->
             {nil, "f" <> Integer.to_string(pos), nil}
         end
@@ -804,7 +808,7 @@ if Code.ensure_loaded?(Tds) do
       do: literal
     defp index_expr(literal), do: quote_name(literal)
 
-    defp engine_expr(storage_engine),
+    defp engine_expr(_storage_engine),
       do: [""]
 
     defp options_expr(nil),
@@ -864,10 +868,10 @@ if Code.ensure_loaded?(Tds) do
 
     ## Helpers
 
-    defp get_source(query, sources, ix, source) do
-      {expr, name, _schema} = elem(sources, ix)
-      {expr || paren_expr(source, sources, query), name}
-    end
+    # defp get_source(query, sources, ix, source) do
+    #   {expr, name, _schema} = elem(sources, ix)
+    #   {expr || paren_expr(source, sources, query), name}
+    # end
 
     defp quote_name(name)
     defp quote_name(name) when is_atom(name),
@@ -908,7 +912,7 @@ if Code.ensure_loaded?(Tds) do
       |> :binary.replace("'", "''", [:global])
     end
 
-    defp ecto_cast_to_db(type, query), do: ecto_to_db(type, query)
+    # defp ecto_cast_to_db(type, query), do: ecto_to_db(type, query)
 
     defp ecto_to_db(type, query \\ nil)
     defp ecto_to_db({:array, _}, query),
@@ -942,7 +946,7 @@ if Code.ensure_loaded?(Tds) do
       raise Ecto.QueryError, query: query, message: message
     end
 
-    defp if_table_not_exists(condition, name, prefix \\ "dbo") do
+    defp if_table_not_exists(condition, name, prefix) do
       if condition do
         query_segment = ["IF NOT EXISTS ( ",
                         "SELECT * ",
@@ -956,7 +960,7 @@ if Code.ensure_loaded?(Tds) do
       end
     end
 
-    defp if_table_exists(condition, name, prefix \\ "dbo") do
+    defp if_table_exists(condition, name, prefix) do
       if condition do
         query_segment = ["IF EXISTS ( ",
                         "SELECT * ",
