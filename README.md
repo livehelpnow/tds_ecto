@@ -49,13 +49,27 @@ defmodule Simple do
 end
 ```
 
+Also, if you need to map table to schema other than [dbo], simple use @schema_prefix "your_schema", eg:
+
+```
+defmodule Invoices.Invoice do
+  use Ecto.Schema
+
+  @schema_prefix :invoices
+  schema "invoices" do
+    field :due_date, :datetime
+    field :sum, :float
+  end
+end
+```
+
 ## Usage
 
 Add Tds as a dependency in your `mix.exs` file.
 
 ```elixir
 def deps do
-  [{:tds_ecto, "~> 0.1.0-alpha", github: "livehelpnow/tds_ecto", branch: "ecto2"}]
+  [{:tds_ecto, "~> 2.0.0-alpha", github: "livehelpnow/tds_ecto", branch: "ecto2"}]
 end
 ```
 
@@ -91,17 +105,18 @@ For additional information on usage please see the documentation for [Ecto](http
 	MSSQL             	Ecto
 	----------        	------
 	nvarchar          	:string
-	varchar			  	:binary
+	varchar			  	    :binary
 	char              	:binary
-	varbinary		  	:binary
+	varbinary		  	    :binary
 	float             	:float
 	decimal           	:decimal
-	integer 		  	:integer
-	bit 			  	:boolean
+	integer 		  	    :integer
+	bit 			  	      :boolean
 	uniqueidentifier  	:uuid
-	datetime		  	:datetime
-	date			  	:date
-	time 			  	:time
+	datetime		  	    :datetime
+	date			  	      :date
+	time 			  	      :time
+
 
 
 ## Contributing
@@ -114,15 +129,13 @@ $ cd tds_ecto
 $ mix test
 ```
 
-The tests require an addition to your hosts file to connect to your sql server database.
+Tests will try to connect to `localhost` using `sa` as username with predefined password `mssql`, but you can set environment variables to override any, like so: `SQL_USERNAME=myuser; SQL_PASSWORD=mypassword; SQL_HOSTNAME=sqlserver.local; mix test` or if you are using windows then `SET SQL_USERNAME=myuser && SET SQL_PASSWORD=mypassword && SET SQL_HOSTNAME=sqlserver.local && mix test`. Please note that tests will run againes default sql server instance.
 
-<IP OF SQL SERVER>	mssql.local
-
-Additionally SQL authentication needs to be used for connecting and testing. Add the user `test_user` with access to the database `test_db`. See one of the test files for the connection information and port number.
+Additionally SQL authentication needs to be used for connecting and testing.If you override default test settings, make sure either that yor user has sysadmin privilegies to add the user `test_user` with access to the database `test_db`, or simply add manualy test_user on your server. See one of the test files for the connection information and port number.
 
 ## License
 
-   Copyright 2014, 2015, 2016 LiveHelpNow
+   Copyright 2014, 2015, 2016, 2017 LiveHelpNow
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.

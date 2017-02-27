@@ -4,11 +4,11 @@ defmodule Tds.Ecto.StorageTest do
   alias Tds.Ecto
 
   def params do
-    [database: "storage_mgt",
-     pool: Ecto.Adapters.SQL.Sandbox,
-     username: "sa",
-     password: System.get_env("SQL_PASSWORD") || "mssql",
-     hostname: "localhost"]
+    [ database: "storage_mgt",
+      pool: Ecto.Adapters.SQL.Sandbox,
+      hostname: System.get_env("SQL_HOSTNAME") || "localhost",
+      username: System.get_env("SQL_USERNAME") || "sa",
+      password: System.get_env("SQL_PASSWORD") || "mssql",]
   end
 
   def wrong_params() do
