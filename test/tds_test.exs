@@ -160,15 +160,13 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0 WITH(NOLOCK)}
   end
 
-  # # TODO
-  # # These need to be updated
-  # test "string escape" do
-  #   query = Model |> select([], "'\\  ") |> normalize
-  #   assert SQL.all(query) == ~s{SELECT '''\\\\  ' FROM [model] AS m0}
+  test "string escape" do
+    query = Model |> select([], "'\\  ") |> normalize
+    assert SQL.all(query) == ~s{SELECT CONVERT(nvarchar(4), 0x27005c0020002000) FROM [model] AS m0}
 
-  #   query = Model |> select([], "'") |> normalize
-  #   assert SQL.all(query) == ~s{SELECT '''' FROM [model] AS m0}
-  # end
+    query = Model |> select([], "'") |> normalize
+    assert SQL.all(query) == ~s{SELECT '''' FROM [model] AS m0}
+  end
 
   test "binary ops" do
     query = Model |> select([r], r.x == 2) |> normalize
@@ -208,10 +206,10 @@ defmodule Tds.Ecto.TdsTest do
     query = Model |> select([r], fragment("lower(?)", ^value)) |> normalize
     assert SQL.all(query) == ~s{SELECT lower(@1) FROM [model] AS m0}
 
-    # query = Model |> select([], fragment(title: 2)) |> normalize
-    # assert_raise ArgumentError, fn ->
-    #   SQL.all(query)
-    # end
+    query = Model |> select([], fragment(title: 2)) |> normalize
+    assert_raise Ecto.QueryError, ~r"TDS adapter does not support keyword or interpolated fragments", fn ->
+      SQL.all(query)
+    end
   end
 
   test "literals" do
@@ -224,8 +222,8 @@ defmodule Tds.Ecto.TdsTest do
     query = Model |> select([], false) |> normalize
     assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0}
 
-    # query = Model |> select([], "abc") |> normalize
-    # assert SQL.all(query) == ~s{SELECT 'abc' FROM [model] AS m0}
+    query = Model |> select([], "abc") |> normalize
+    assert SQL.all(query) == ~s{SELECT 'abc' FROM [model] AS m0}
 
     query = Model |> select([], 123) |> normalize
     assert SQL.all(query) == ~s{SELECT 123 FROM [model] AS m0}

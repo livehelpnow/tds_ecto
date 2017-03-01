@@ -7,6 +7,8 @@ if Code.ensure_loaded?(Tds) do
     @behaviour Ecto.Adapters.SQL.Connection
     # @behaviour Ecto.Adapters.SQL.Query
     
+    @unsafe_query_strings ["'\\"]
+
     def connect(opts) do
       opts = opts
         |> Keyword.put_new(:port, @default_port)
@@ -163,9 +165,7 @@ if Code.ensure_loaded?(Tds) do
     ## Query
 
     alias Ecto.Query
-    alias Ecto.Query.SelectExpr
-    alias Ecto.Query.QueryExpr
-    alias Ecto.Query.JoinExpr
+    alias Ecto.Query.{SelectExpr, QueryExpr, JoinExpr, BooleanExpr}
 
     def all(query) do
       sources = create_names(query)
@@ -434,23 +434,39 @@ if Code.ensure_loaded?(Tds) do
     defp lock(nil), do: ""
     defp lock(lock_clause), do: " #{lock_clause} "
 
-    defp boolean(_name, [], _sources, _query), do: nil
-    defp boolean(name, query_exprs, sources, query) do
+    defp boolean(_name, [], _sources, _query), do: []
+    defp boolean(name, [%{expr: expr, op: op} | query_exprs], sources, query) do
       name <> " " <>
-        Enum.map_join(query_exprs, " AND ", fn
-          %QueryExpr{expr: expr} ->
-            case expr do
-              true -> "(1 = 1)"
-              false -> "(0 = 1)"
-              _ -> "(" <> expr(expr, sources, query) <> ")"
-            end
-        end)
+        Enum.reduce(query_exprs, {op, paren_expr(expr, sources, query)}, fn
+          %BooleanExpr{expr: expr, op: op}, {op, acc} ->
+            {op, acc <> operator_to_boolean(op) <> paren_expr(expr, sources, query) }
+          %BooleanExpr{expr: expr, op: op}, {_, acc} ->
+            {op, "(" <> acc <> ")" <> operator_to_boolean(op) <> paren_expr(expr, sources, query)}
+       end) |> elem(1)
     end
+    # defp boolean(name, query_exprs, sources, query) do
+    #   name <> " " <>
+    #     Enum.map_join(query_exprs, " AND ", fn
+    #       %QueryExpr{expr: true, op: op} ->
+    #         {op, "(1 = 1)"}
+    #       %QueryExpr{expr: false, op: op} ->
+    #         {op, "(0 = 1)"}
+    #       %QueryExpr{expr: expr, op: op} ->
+    #         {op, paren_expr(expr, sources, query)}
+    #     end)
+    # end
 
+    defp operator_to_boolean(:and), do: " AND "
+    defp operator_to_boolean(:or), do: " OR "
+
+    defp paren_expr(expr, sources, query) do
+      "(" <> expr(expr, sources, query) <> ")"
+    end
+    # :^ - represents parameter ix is index number 
     defp expr({:^, [], [ix]}, _sources, _query) do
       "@#{ix+1}"
     end
-
+    # :. - attribure, table alias name can be get from sources by passing index 
     defp expr({{:., _, [{:&, _, [idx]}, field]}, _, []}, sources, _query) when is_atom(field) do
       {_, name, _} = elem(sources, idx)
       "#{name}.#{quote_name(field)}"
@@ -540,10 +556,15 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp expr(string, _sources, _query) when is_binary(string) do
-      hex = string
-        |> :unicode.characters_to_binary(:utf8, {:utf16, :little})
-        |> Base.encode16(case: :lower)
-      "CONVERT(nvarchar(max), 0x#{hex})"
+      if String.contains?(string, @unsafe_query_strings) do
+        len = String.length(string)
+        hex = string
+          |> :unicode.characters_to_binary(:utf8, {:utf16, :little})
+          |> Base.encode16(case: :lower)
+        "CONVERT(nvarchar(#{len}), 0x#{hex})"
+      else
+        "'#{escape_string(string)}'"
+      end
     end
 
     defp expr(%Decimal{} = decimal, _sources, _query) do
