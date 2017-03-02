@@ -118,10 +118,10 @@ defmodule Tds.Ecto.TdsTest do
     end
   end
 
-  # test "where" do
-  #   query = Model |> where([r], r.x == 42) |> where([r], r.y != 43) |> select([r], r.x) |> normalize
-  #   assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 WHERE (m0.[x] = 42) AND (m0.[y] != 43)}
-  # end
+  test "where" do
+    query = Model |> where([r], r.x == 42) |> where([r], r.y != 43) |> select([r], r.x) |> normalize
+    assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0 WHERE (m0.[x] = 42) AND (m0.[y] != 43)}
+  end
 
   test "order by" do
     query = Model |> order_by([r], r.x) |> select([r], r.x) |> normalize

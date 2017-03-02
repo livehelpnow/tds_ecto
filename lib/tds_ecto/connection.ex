@@ -436,13 +436,13 @@ if Code.ensure_loaded?(Tds) do
 
     defp boolean(_name, [], _sources, _query), do: []
     defp boolean(name, [%{expr: expr, op: op} | query_exprs], sources, query) do
-      name <> " " <>
-        Enum.reduce(query_exprs, {op, paren_expr(expr, sources, query)}, fn
+      r = Enum.reduce(query_exprs, {op, paren_expr(expr, sources, query)}, fn
           %BooleanExpr{expr: expr, op: op}, {op, acc} ->
             {op, acc <> operator_to_boolean(op) <> paren_expr(expr, sources, query) }
           %BooleanExpr{expr: expr, op: op}, {_, acc} ->
             {op, "(" <> acc <> ")" <> operator_to_boolean(op) <> paren_expr(expr, sources, query)}
-       end) |> elem(1)
+      end) |> elem(1)
+      name <> " " <> r
     end
     # defp boolean(name, query_exprs, sources, query) do
     #   name <> " " <>
