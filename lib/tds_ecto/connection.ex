@@ -8,6 +8,8 @@ if Code.ensure_loaded?(Tds) do
     # @behaviour Ecto.Adapters.SQL.Query
     
     @unsafe_query_strings ["'\\"]
+    require Tds.Ecto.Utils
+    alias Tds.Ecto.Utils
 
     def connect(opts) do
       opts = opts
@@ -18,7 +20,7 @@ if Code.ensure_loaded?(Tds) do
     def child_spec(opts) do
       Tds.child_spec(opts)
     end
-
+    require Ecto.Schema
     alias Tds.Query
     alias Tds.Parameter
 
@@ -209,18 +211,6 @@ if Code.ensure_loaded?(Tds) do
       assemble([delete, from, join, where])
     end
     
-    # def insert(prefix, table, fields, returning) do
-    #   values =
-    #     if fields == [] do
-    #       returning(returning, "INSERTED") <>
-    #       "DEFAULT VALUES"
-    #     else
-    #       "(" <> Enum.map_join(fields, ", ", &quote_name/1) <> ")" <>
-    #       " " <> returning(returning, "INSERTED") <>
-    #       "VALUES (" <> Enum.map_join(1..length(fields), ", ", &"@#{&1}") <> ")"
-    #     end
-    #   "INSERT INTO #{quote_table(prefix, table)} " <> values
-    # end
     def insert(prefix, table, header, rows, on_conflict, returning) do
       [] = on_conflict(on_conflict, header)
       values =
@@ -228,8 +218,11 @@ if Code.ensure_loaded?(Tds) do
           returning(returning, "INSERTED") <>
             "DEFAULT VALUES"
         else
-          "(" <> Enum.map_join(header, ", ", &quote_name/1) <> ")" <>
-            " " <> returning(returning, "INSERTED") <>
+          "(" <> 
+            Enum.map_join(header, ", ", &quote_name/1) <> 
+            ")" <>
+            " " <> 
+            returning(returning, "INSERTED") <>
             "VALUES " <> insert_all(rows, 1, "")
         end
       "INSERT INTO #{quote_table(prefix, table)} " <> values
@@ -247,7 +240,8 @@ if Code.ensure_loaded?(Tds) do
     defp on_conflict({:replace_all, _, []}, _header) do
       error!(nil, "The :replace_all option is not supported in insert/insert_all by TDS")
     end
-    defp on_conflict({_query, _, []}, _header) do
+    defp on_conflict({query, _, []}, _header) do
+      IO.puts("#{inspect(query)}")
       error!(nil, "The query as option for on_conflict is not supported in insert/insert_all by TDS yet.")
     end
 
@@ -263,6 +257,8 @@ if Code.ensure_loaded?(Tds) do
       do: insert_each(t, counter, acc <> ",DEFAULT")
     defp insert_each([_|t], counter, acc),
       do: insert_each(t, counter + 1, acc <> ", @" <> Integer.to_string(counter))
+    defp insert_each([], counter, ", " <> acc),
+      do: {counter, acc}
     defp insert_each([], counter, "," <> acc),
       do: {counter, acc}
 
@@ -304,7 +300,9 @@ if Code.ensure_loaded?(Tds) do
     defp handle_call(fun, _arity), do: {:fun, Atom.to_string(fun)}
 
     defp select(%Query{select: %SelectExpr{fields: fields}, distinct: []} = query, sources) do
-      "SELECT " <> limit(query, sources) <> select(fields, sources, query)
+      "SELECT " <> 
+        limit(query, sources) <> 
+        select(fields, sources, query)
     end
 
     defp select(%Query{select: %SelectExpr{fields: fields}} = query, sources) do
@@ -329,6 +327,7 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp from(sources, lock) do
+      
       {table, name, _model} = elem(sources, 0)
       "FROM #{table} AS #{name}" <> lock(lock) |> String.strip
     end
@@ -436,13 +435,15 @@ if Code.ensure_loaded?(Tds) do
 
     defp boolean(_name, [], _sources, _query), do: []
     defp boolean(name, [%{expr: expr, op: op} | query_exprs], sources, query) do
-      r = Enum.reduce(query_exprs, {op, paren_expr(expr, sources, query)}, fn
-          %BooleanExpr{expr: expr, op: op}, {op, acc} ->
-            {op, acc <> operator_to_boolean(op) <> paren_expr(expr, sources, query) }
-          %BooleanExpr{expr: expr, op: op}, {_, acc} ->
-            {op, "(" <> acc <> ")" <> operator_to_boolean(op) <> paren_expr(expr, sources, query)}
-      end) |> elem(1)
-      name <> " " <> r
+      boolean_expression = 
+        Enum.reduce(query_exprs, {op, paren_expr(expr, sources, query)}, fn
+            %BooleanExpr{expr: expr, op: op}, {op, acc} ->
+              {op, acc <> operator_to_boolean(op) <> paren_expr(expr, sources, query) }
+            %BooleanExpr{expr: expr, op: op}, {_, acc} ->
+              {op, "(" <> acc <> ")" <> operator_to_boolean(op) <> paren_expr(expr, sources, query)}
+        end) 
+        |> elem(1)
+      name <> " " <> boolean_expression
     end
     # defp boolean(name, query_exprs, sources, query) do
     #   name <> " " <>
@@ -482,7 +483,8 @@ if Code.ensure_loaded?(Tds) do
 
       Enum.map_join(fields, ", ", &"#{name}.#{quote_name(&1)}")
     end
-
+    #         {:in, [], [1,   {:^, [], [0, 0]}]}
+    
     defp expr({:in, _, [_left, []]}, _sources, _query) do
       "0=1"
     end
@@ -492,6 +494,7 @@ if Code.ensure_loaded?(Tds) do
       expr(left, sources, query) <> " IN (" <> args <> ")"
     end
 
+    defp expr({:in, _, [_left, {:^, [], [0, 0]}]}, _sources, _query), do: "0=1"
     defp expr({:in, _, [left, {:^, _, [ix, length]}]}, sources, query) do
       args = Enum.map_join ix+1..ix+length, ",", &"@#{&1}"
       expr(left, sources, query) <> " IN (" <> args <> ")"
@@ -647,8 +650,16 @@ if Code.ensure_loaded?(Tds) do
           {table, model} ->
             name = String.first(table) <> Integer.to_string(pos)
             case String.split(table, ".") do
-              [table]         -> {quote_table(prefix, table), name, model}
-              [prefix, table] -> {quote_table(prefix, table), name, model}
+              [table]         ->
+                case model do
+                  nil -> {quote_table(prefix, table), name, model}
+                  mod -> 
+                    schema_prefix = mod.__schema__(:prefix)
+                    {quote_table(schema_prefix || prefix, table), name, model}
+                end 
+                
+              [pref, table]   -> 
+                {quote_table(pref, table), name, model}
               _ -> error!(nil, "TDS addapter do not support query of external database or linked server table. Please create SYNONIM!")
             end
           {:fragment, _, _} ->
@@ -665,7 +676,7 @@ if Code.ensure_loaded?(Tds) do
     alias Ecto.Migration.{Table, Index, Reference, Constraint}
 
     def execute_ddl({command, %Table{} = table, columns}) when command in [:create, :create_if_not_exists] do
-      prefix = table.prefix || "dbo"
+      prefix = table.prefix
       table_structure =
         case column_definitions(table, columns) ++ pk_definitions(columns, ", CONSTRAINT [PK_#{prefix}_#{table.name}] ") do
           [] -> []
@@ -683,24 +694,22 @@ if Code.ensure_loaded?(Tds) do
     end
 
     def execute_ddl({command, %Table{} = table}) when command in [:drop, :drop_if_exists] do
-      prefix = table.prefix || "dbo"
+      prefix = table.prefix
       query = [[if_table_exists(command == :drop_if_exists, table.name, prefix),
         "DROP TABLE ",
         quote_table(prefix, table.name),
         if_do(command == :drop_if_exists, "END ")]]
       Enum.map_join(query, "", &"#{&1}")
     end
-
     def execute_ddl({:alter, %Table{} = table, changes}) do
-      prefix = table.prefix || "dbo"
-      query = [["ALTER TABLE ", quote_table(prefix, table.name), " ",
-        column_changes(table, changes),
-        pk_definitions(changes, ", ADD CONSTRAINT [PK_#{prefix}_#{table.name}] ")]]
-      Enum.map_join(query, "", &"#{&1}")
+      statement_prefix = ["ALTER TABLE #{quote_table(table.prefix, table.name)} "]
+      pks = pk_definitions(changes, " ADD CONSTRAINT [PK_#{table.prefix}_#{table.name}] ")
+      Logger.info(pks)
+      # |> Enum.concat(pk_definitions(changes, " ADD CONSTRAINT [PK_#{table.prefix}_#{table.name}] "))
+      [column_changes(statement_prefix, table, changes)] |> IO.iodata_to_binary() 
     end
-
     def execute_ddl({:create, %Index{} = index}) do
-      prefix = index.prefix || "dbo"
+      prefix = index.prefix
       if index.where do
         error!(nil, "TDS adapter does not support where in indexes yet.")
       end
@@ -714,7 +723,6 @@ if Code.ensure_loaded?(Tds) do
         if_do(index.concurrently, " LOCK=NONE")]]
       Enum.map_join(query, "", &"#{&1}")
     end
-
     def execute_ddl({:create_if_not_exists, %Index{}}),
       do: error!(nil, "TDS adapter does not support create if not exists for index")
 
@@ -724,14 +732,13 @@ if Code.ensure_loaded?(Tds) do
       do: error!(nil, "TDS adapter does not support exclusion constraints")
 
     def execute_ddl({:drop, %Index{} = index}) do
-      prefix = index.prefix || "dbo"
-      query = [["DROP INDEX ",
+      prefix = index.prefix
+      query = [
+        "DROP INDEX ",
         quote_name(index.name),
         " ON ", quote_table(prefix, index.table),
-        if_do(index.concurrently, " LOCK=NONE")]]
-      Enum.map_join(query, "", &"#{&1}")
+        if_do(index.concurrently, " LOCK=NONE;")] |> IO.iodata_to_binary
     end
-
     def execute_ddl({:drop, %Constraint{}}),
       do: error!(nil, "TDS adapter does not support constraints")
 
@@ -739,22 +746,20 @@ if Code.ensure_loaded?(Tds) do
       do: error!(nil, "TDS adapter does not support drop if exists for index")
 
     def execute_ddl({:rename, %Table{} = current_table, %Table{} = new_table}) do
-      current_table_prefix = current_table.prefix || "dbo"
-      new_table_prefix = new_table.prefix || "dbo"
+      current_table_prefix = current_table.prefix
+      new_table_prefix = new_table.prefix
       query = [["exec sp_rename '", quote_table(current_table_prefix, current_table.name),
         "', '", quote_table(new_table_prefix, new_table.name). "'"]]
       Enum.map_join(query, "", &"#{&1}")
     end
-
     def execute_ddl({:rename, _table, _current_column, _new_column}) do
       error!(nil, "TDS adapter does not support renaming columns yet.")
     end
-
     def execute_ddl(string) when is_binary(string), do: [string]
-
     def execute_ddl(keyword) when is_list(keyword),
       do: error!(nil, "TDS adapter does not support keyword lists in execute")
 
+    
     defp pk_definitions(columns, prefix) do
       pks =
         for {_, name, _, opts} <- columns,
@@ -763,7 +768,7 @@ if Code.ensure_loaded?(Tds) do
 
       case pks do
         [] -> []
-        _  -> [[prefix, "PRIMARY KEY CLUSTERED (#{intersperse_map(pks, ", ", &quote_name/1)})"]]
+        _  -> [[prefix, "PRIMARY KEY CLUSTERED (#{intersperse_map(pks, ", ", &quote_name/1)})"] |> IO.iodata_to_binary]
       end
     end
 
@@ -773,57 +778,86 @@ if Code.ensure_loaded?(Tds) do
 
     defp column_definition(table, {:add, name, %Reference{} = ref, opts}) do
       [quote_name(name), " ", reference_column_type(ref.type, opts),
-      column_options(opts), reference_expr(ref, table, name)]
+      column_options(table, name, opts), reference_expr(ref, table, name)]
+      
     end
 
-    defp column_definition(_table, {:add, name, type, opts}) do
-      [quote_name(name), " ", column_type(type, opts), column_options(opts)]
+    defp column_definition(table, {:add, name, type, opts}) do
+      [quote_name(name), " ", column_type(type, opts), column_options(table, name, opts)]
     end
 
-    defp column_changes(table, columns) do
-      intersperse_map(columns, ", ", &column_change(table, &1))
+    defp column_changes(statement, table, columns \\ []) do
+      # intersperse_map(columns, " ", &column_change(statement, table, &1))
+      for column <- columns do
+        column_change(statement, table, column) 
+      end 
     end
 
-    defp column_change(table, {:add, name, %Reference{} = ref, opts}) do
-      ["ADD ", quote_name(name), " ", reference_column_type(ref.type, opts),
-      column_options(opts), constraint_expr(ref, table, name)]
+    defp column_change(statement_prefix, table, {:add, name, %Reference{} = ref, opts}) do
+      [[statement_prefix, "ADD ", 
+        quote_name(name), " ", 
+        reference_column_type(ref.type, opts), column_options(table, name, opts), "; "], 
+       [statement_prefix, "ADD", constraint_expr(ref, table, name), "; "]]
     end
 
-    defp column_change(_table, {:add, name, type, opts}) do
-      ["ADD ", quote_name(name), " ", column_type(type, opts), column_options(opts)]
+    defp column_change(statement_prefix, table, {:add, name, type, opts}) do
+      [statement_prefix, "ADD ", quote_name(name), " ", column_type(type, opts), column_options(table, name, opts), "; "]
     end
 
-    defp column_change(table, {:modify, name, %Reference{} = ref, opts}) do
-      ["ALTER COLUMN ", quote_name(name), " ", reference_column_type(ref.type, opts),
-      column_options(opts), constraint_expr(ref, table, name)]
+    defp column_change(statement_prefix, table, {:modify, name, %Reference{} = ref, opts}) do
+      fk_name= reference_name(ref, table, name)
+      [[Utils.if_object_exists(true, fk_name , "FK", do: [statement_prefix, "DROP CONSTRAINT ", fk_name, "; "])],
+       [statement_prefix, "ALTER COLUMN ", 
+        quote_name(name), " ", reference_column_type(ref.type, opts), column_options(table, name, opts), "; "],
+       [statement_prefix, "ADD", constraint_expr(ref, table, name), "; "]]
     end
 
-    defp column_change(_table, {:modify, name, type, opts}) do
-      ["ALTER COLUMN ", quote_name(name), " ", column_type(type, opts), column_options(opts)]
+    defp column_change(statement_prefix, table, {:modify, name, type, opts}) do
+      fk_name= constraint_name("DF", table, name)
+      has_default = Keyword.has_key?(opts, :default)
+      [[Utils.if_object_exists(has_default, fk_name , "DF", do: [statement_prefix, "DROP CONSTRAINT ", fk_name, "; "])],
+       [statement_prefix, "ALTER COLUMN ", quote_name(name), " ", column_type(type, opts), null_expr(Keyword.get(opts, :null)), "; "],
+       [column_default_value(statement_prefix, table, name, opts)]]
     end
 
-    defp column_change(_table, {:remove, name}), do: ["DROP ", quote_name(name)]
+    defp column_change(statement_prefix, _table, {:remove, name}) do 
+      [statement_prefix, "DROP COLUMN ", quote_name(name), "; "]
+    end
 
-    defp column_options(opts) do
+    defp column_options(table, name, opts) do
       default = Keyword.fetch(opts, :default)
       null    = Keyword.get(opts, :null)
-      [default_expr(default), null_expr(null)]
+      [null_expr(null), default_expr(table, name, default)]
     end
 
-    defp null_expr(false), do: " NOT NULL"
-    defp null_expr(true), do: " NULL"
+    defp column_default_value(statement_prefix, table, name, opts) do
+      default_expression = default_expr(table, name, Keyword.fetch(opts, :default))
+      case default_expression do 
+        [] -> []
+        _  -> [statement_prefix, "ADD", default_expression, " FOR ", quote_name(name), "; "]
+      end
+    end
+
+    defp null_expr(false), do: [" NOT NULL"]
+    defp null_expr(true), do: [" NULL"]
     defp null_expr(_), do: []
 
-    defp default_expr({:ok, nil}),
-      do: " DEFAULT NULL"
-    defp default_expr({:ok, literal}) when is_binary(literal),
-      do: [" DEFAULT '", escape_string(literal), "'"]
-    defp default_expr({:ok, literal}) when is_number(literal) or is_boolean(literal),
-      do: [" DEFAULT ", to_string(literal)]
-    defp default_expr({:ok, {:fragment, expr}}),
-      do: [" DEFAULT ", expr]
-    defp default_expr(:error),
+    defp default_expr(table, name, {:ok, nil}),
+      do: [" CONSTRAINT ", constraint_name("DF", table, name), " DEFAULT (NULL)"]
+    defp default_expr(table, name, {:ok, literal}) when is_binary(literal),
+      do: [" CONSTRAINT ", constraint_name("DF", table, name), " DEFAULT (N'", escape_string(literal), "')"]
+    defp default_expr(table, name, {:ok, true}),
+      do: [" CONSTRAINT ", constraint_name("DF", table, name), " DEFAULT (1)"]
+    defp default_expr(table, name, {:ok, false}),
+      do: [" CONSTRAINT ", constraint_name("DF", table, name), " DEFAULT (0)"]
+    defp default_expr(table, name, {:ok, literal}) when is_number(literal),
+      do: [" CONSTRAINT ", constraint_name("DF", table, name), " DEFAULT (", to_string(literal), ")"]
+    defp default_expr(table, name, {:ok, {:fragment, expr}}),
+      do: [" CONSTRAINT ", constraint_name("DF", table, name), " DEFAULT (", expr, ")"]
+    defp default_expr(table, name, :error),
       do: []
+
+    defp constraint_name(type, table, name), do: quote_name("#{type}_#{table.prefix}_#{table.name}_#{name}")
 
     defp index_expr(literal) when is_binary(literal),
       do: literal
@@ -854,23 +888,19 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp constraint_expr(%Reference{} = ref, table, name) do 
-      Enum.map_join([", ADD CONSTRAINT ", reference_name(ref, table, name),
-          " FOREIGN KEY (#{quote_name(name)})",
-          " REFERENCES ", quote_table(table.prefix || "dbo", ref.table),
-          "(#{quote_name(ref.column)})",
-          reference_on_delete(ref.on_delete), reference_on_update(ref.on_update)], "", &"#{&1}")
+      [" CONSTRAINT ", reference_name(ref, table, name),
+        " FOREIGN KEY (#{quote_name(name)})",
+        " REFERENCES ", quote_table(table.prefix, ref.table),
+        "(#{quote_name(ref.column)})",
+        reference_on_delete(ref.on_delete), reference_on_update(ref.on_update)]
     end
 
     defp reference_expr(%Reference{} = ref, table, name) do
-      Enum.map_join([", CONSTRAINT ", reference_name(ref, table, name),
-          " FOREIGN KEY (#{quote_name(name)})",
-          " REFERENCES ", quote_table(table.prefix || "dbo", ref.table),
-          "(#{quote_name(ref.column)})",
-          reference_on_delete(ref.on_delete), reference_on_update(ref.on_update)], "", &"#{&1}")
+      [",", constraint_expr(ref, table, name)] |> Enum.map_join("", &"#{&1}")
     end
 
     defp reference_name(%Reference{name: nil}, table, column),
-      do: quote_name("FK_#{table.prefix || "dbo"}_#{table.name}_#{column}")
+      do: quote_name("FK_#{table.prefix}_#{table.name}_#{column}")
     defp reference_name(%Reference{name: name}, _table, _column),
       do: quote_name(name)
 
@@ -920,9 +950,12 @@ if Code.ensure_loaded?(Tds) do
     defp intersperse_map([], _separator, _mapper, acc),
       do: acc
     defp intersperse_map([elem], _separator, mapper, acc),
-      do: [acc | mapper.(elem)]
-    defp intersperse_map([elem | rest], separator, mapper, acc),
-      do: intersperse_map(rest, separator, mapper, [acc, mapper.(elem), separator])
+      do: acc ++ mapper.(elem)
+    defp intersperse_map([elem | rest], separator, mapper, acc) do 
+      statement = [mapper.(elem), separator] |> IO.iodata_to_binary
+      acc = acc ++ [statement]
+      intersperse_map(rest, separator, mapper, acc)
+    end
 
     defp if_do(condition, value) do
       if condition, do: value, else: []
