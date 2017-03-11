@@ -692,7 +692,6 @@ if Code.ensure_loaded?(Tds) do
         if_do(command == :create_if_not_exists, "END ")]]
       Enum.map_join(query, "", &"#{&1}")
     end
-
     def execute_ddl({command, %Table{} = table}) when command in [:drop, :drop_if_exists] do
       prefix = table.prefix
       query = [[if_table_exists(command == :drop_if_exists, table.name, prefix),
@@ -702,16 +701,25 @@ if Code.ensure_loaded?(Tds) do
       Enum.map_join(query, "", &"#{&1}")
     end
     def execute_ddl({:alter, %Table{} = table, changes}) do
-      statement_prefix = ["ALTER TABLE #{quote_table(table.prefix, table.name)} "]
-      pks = pk_definitions(changes, " ADD CONSTRAINT [PK_#{table.prefix}_#{table.name}] ")
-      Logger.info(pks)
-      # |> Enum.concat(pk_definitions(changes, " ADD CONSTRAINT [PK_#{table.prefix}_#{table.name}] "))
-      [column_changes(statement_prefix, table, changes)] |> IO.iodata_to_binary() 
+      statement_prefix = ["ALTER TABLE ", quote_table(table.prefix, table.name), " "]
+      # todo: There is amny issues which could arase is we want to remove primary key, this needs special attention!!!
+      # below is just case when we are adding pkeys, but may things are not covered:
+      # 1. What if primary key was already defined?
+      # 2. What if we need to drop composite key?
+      # 3. What is field is removed which is in PK but developer do not specify in options?
+      # 4. If developer whant to alter PK field, it could be an issue. The only way is to query database and check what is currently there!!
+      pkeys = case pk_definitions(changes, " CONSTRAINT [PK_#{table.prefix}_#{table.name}] ") do
+        []  -> []
+        sql -> [statement_prefix, "ADD", sql]
+      end
+      [column_changes(statement_prefix, table, changes),
+       pkeys]
+        |> IO.iodata_to_binary() 
     end
     def execute_ddl({:create, %Index{} = index}) do
       prefix = index.prefix
-      if index.where do
-        error!(nil, "TDS adapter does not support where in indexes yet.")
+      if index.using do
+        error!(nil, "TDS adapter does not support using in indexes.")
       end
 
       query = [["CREATE", if_do(index.unique, " UNIQUE"), " INDEX ",
@@ -719,9 +727,10 @@ if Code.ensure_loaded?(Tds) do
         " ON ",
         quote_table(prefix, index.table), " ",
         "(#{intersperse_map(index.columns, ", ", &index_expr/1)})",
+        # if_do(is_list(index.include), [" INCLUDE (", intersperse_map(index.columns, ", ", &index_expr/1), ")"]),
         if_do(index.using, [" USING ", to_string(index.using)]),
-        if_do(index.concurrently, " LOCK=NONE")]]
-      Enum.map_join(query, "", &"#{&1}")
+        if_do(index.concurrently, " LOCK=NONE"), ";"]]
+        |> IO.iodata_to_binary
     end
     def execute_ddl({:create_if_not_exists, %Index{}}),
       do: error!(nil, "TDS adapter does not support create if not exists for index")
@@ -737,7 +746,8 @@ if Code.ensure_loaded?(Tds) do
         "DROP INDEX ",
         quote_name(index.name),
         " ON ", quote_table(prefix, index.table),
-        if_do(index.concurrently, " LOCK=NONE;")] |> IO.iodata_to_binary
+        if_do(index.concurrently, " LOCK=NONE"), 
+        ";"] |> IO.iodata_to_binary
     end
     def execute_ddl({:drop, %Constraint{}}),
       do: error!(nil, "TDS adapter does not support constraints")
@@ -746,20 +756,16 @@ if Code.ensure_loaded?(Tds) do
       do: error!(nil, "TDS adapter does not support drop if exists for index")
 
     def execute_ddl({:rename, %Table{} = current_table, %Table{} = new_table}) do
-      current_table_prefix = current_table.prefix
-      new_table_prefix = new_table.prefix
-      query = [["exec sp_rename '", quote_table(current_table_prefix, current_table.name),
-        "', '", quote_table(new_table_prefix, new_table.name). "'"]]
-      Enum.map_join(query, "", &"#{&1}")
+      [["EXEC sp_rename '", unquoted_name(current_table.prefix, current_table.name),"', '", unquoted_name(new_table.prefix, new_table.name), "'"]]
+      |> IO.iodata_to_binary
     end
-    def execute_ddl({:rename, _table, _current_column, _new_column}) do
-      error!(nil, "TDS adapter does not support renaming columns yet.")
+    def execute_ddl({:rename, table, current_column, new_column}) do
+      [["EXEC sp_rename '", unquoted_name(table.prefix, table.name, current_column),"', '", unquoted_name(new_column), "', 'COLUMN'"]]
+      |> IO.iodata_to_binary
     end
     def execute_ddl(string) when is_binary(string), do: [string]
-    def execute_ddl(keyword) when is_list(keyword),
-      do: error!(nil, "TDS adapter does not support keyword lists in execute")
+    def execute_ddl(keyword) when is_list(keyword), do: error!(nil, "TDS adapter does not support keyword lists in execute")
 
-    
     defp pk_definitions(columns, prefix) do
       pks =
         for {_, name, _, opts} <- columns,
@@ -801,12 +807,12 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp column_change(statement_prefix, table, {:add, name, type, opts}) do
-      [statement_prefix, "ADD ", quote_name(name), " ", column_type(type, opts), column_options(table, name, opts), "; "]
+      [[statement_prefix, "ADD ", quote_name(name), " ", column_type(type, opts), column_options(table, name, opts), "; "]]
     end
 
     defp column_change(statement_prefix, table, {:modify, name, %Reference{} = ref, opts}) do
       fk_name= reference_name(ref, table, name)
-      [[Utils.if_object_exists(true, fk_name , "FK", do: [statement_prefix, "DROP CONSTRAINT ", fk_name, "; "])],
+      [[Utils.if_object_exists(true, fk_name , "F", do: [statement_prefix, "DROP CONSTRAINT ", fk_name, "; "])],
        [statement_prefix, "ALTER COLUMN ", 
         quote_name(name), " ", reference_column_type(ref.type, opts), column_options(table, name, opts), "; "],
        [statement_prefix, "ADD", constraint_expr(ref, table, name), "; "]]
@@ -946,6 +952,24 @@ if Code.ensure_loaded?(Tds) do
       "[#{name}]"
     end
 
+    defp unquoted_name(prefix, name, column_name), do: unquoted_name(unquoted_name(prefix, name), column_name)
+
+    defp unquoted_name(nil, name),    do: unquoted_name(name)
+    defp unquoted_name(prefix, name)  do 
+      prefix = if is_atom(prefix), do: Atom.to_string(prefix), else: prefix
+      name = if is_atom(name), do: Atom.to_string(name), else: name
+      
+      [prefix, ".", name] |> IO.iodata_to_binary()
+    end
+    
+    defp unquoted_name(name) when is_atom(name), do: unquoted_name(Atom.to_string(name))
+    defp unquoted_name(name) do
+      if String.contains?(name, "[") or String.contains?(name, "]") do
+        error!(nil, "bad table name #{inspect name} '[' and ']' are not permited")
+      end
+      name
+    end
+
     defp intersperse_map(list, separator, mapper, acc \\ [])
     defp intersperse_map([], _separator, _mapper, acc),
       do: acc
@@ -972,8 +996,8 @@ if Code.ensure_loaded?(Tds) do
     defp ecto_to_db({:array, _}, query),
       do: error!(query, "Array type is not supported by TDS")
     defp ecto_to_db(:id, _query),             do: "bigint"
-    defp ecto_to_db(:serial, _query),         do: "int"
-    defp ecto_to_db(:bigserial, _query),      do: "bigint"
+    defp ecto_to_db(:serial, _query),         do: "int IDENTITY(1,1)"
+    defp ecto_to_db(:bigserial, _query),      do: "bigint IDENTITY(1,1)"
     defp ecto_to_db(:binary_id, _query),      do: "uniqueidentifier"
     defp ecto_to_db(:boolean, _query),        do: "bit"
     defp ecto_to_db(:string, _query),         do: "nvarchar"

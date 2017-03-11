@@ -509,7 +509,7 @@ defmodule Tds.Ecto.TdsTest do
                 {:add, :title, :string, []},
                 {:add, :created_at, :datetime, []}]}
     assert SQL.execute_ddl(create) ==
-           ~s|CREATE TABLE [posts] ([id] bigint, [title] nvarchar(255), [created_at] datetime, CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))|
+           ~s|CREATE TABLE [posts] ([id] bigint IDENTITY(1,1), [title] nvarchar(255), [created_at] datetime, CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))|
   end
 
   test "create table with prefix" do
@@ -534,7 +534,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories), []} ]}
     assert SQL.execute_ddl(create) == [ 
-      "CREATE TABLE [posts] ([id] int, [category_id] INT, ",
+      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] INT, ",
       "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]), CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))" 
       ] |> IO.iodata_to_binary
@@ -558,7 +558,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories, name: :foo_bar), []} ]}
     assert SQL.execute_ddl(create) == [
-      "CREATE TABLE [posts] ([id] int, [category_id] INT, ",
+      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] INT, ",
       "CONSTRAINT [foo_bar] FOREIGN KEY ([category_id]) REFERENCES [categories]([id]), ",
       "CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"
     ] |> IO.iodata_to_binary
@@ -569,7 +569,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :bigserial, [primary_key: true]},
                 {:add, :category_id, references(:categories, on_delete: :nothing), []} ]}
     assert SQL.execute_ddl(create) == [
-      "CREATE TABLE [posts] ([id] bigint, [category_id] INT, ",
+      "CREATE TABLE [posts] ([id] bigint IDENTITY(1,1), [category_id] INT, ",
       "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]), CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"
     ] |> IO.iodata_to_binary
@@ -580,7 +580,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories, on_delete: :nilify_all), []} ]}
     assert SQL.execute_ddl(create) == [
-      "CREATE TABLE [posts] ([id] int, [category_id] INT, ",
+      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] INT, ",
       "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]) ON DELETE SET NULL, ",
       "CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"] |> IO.iodata_to_binary
@@ -591,7 +591,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories, on_delete: :delete_all), []} ]}
     assert SQL.execute_ddl(create) == [
-      "CREATE TABLE [posts] ([id] int, [category_id] INT, ",
+      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] INT, ",
       "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]) ON DELETE CASCADE, ",
       "CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"
@@ -642,8 +642,7 @@ defmodule Tds.Ecto.TdsTest do
 
   test "alter table with prefix" do
     alter = {:alter, table(:posts, prefix: :foo),
-             [#{:add, :id, :serial, [primary_key: true]},
-              {:add, :title, :string, [default: "Untitled", size: 100, null: false]},
+             [{:add, :title, :string, [default: "Untitled", size: 100, null: false]},
               {:add, :author_id, references(:author), []},
               {:modify, :price, :numeric, [precision: 8, scale: 2, null: true]},
               {:modify, :cost, :integer, [null: true, default: nil]},
@@ -658,7 +657,7 @@ defmodule Tds.Ecto.TdsTest do
       "IF (OBJECT_ID(N'[DF_foo_posts_cost]', 'DF') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [DF_foo_posts_cost];  END; ",
       "ALTER TABLE [foo].[posts] ALTER COLUMN [cost] integer NULL; ",
       "ALTER TABLE [foo].[posts] ADD CONSTRAINT [DF_foo_posts_cost] DEFAULT (NULL) FOR [cost]; ",
-      "IF (OBJECT_ID(N'[FK_foo_posts_permalink_id]', 'FK') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [FK_foo_posts_permalink_id];  END; ",
+      "IF (OBJECT_ID(N'[FK_foo_posts_permalink_id]', 'F') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [FK_foo_posts_permalink_id];  END; ",
       "ALTER TABLE [foo].[posts] ALTER COLUMN [permalink_id] INT NOT NULL; ",
       "ALTER TABLE [foo].[posts] ADD CONSTRAINT [FK_foo_posts_permalink_id] FOREIGN KEY ([permalink_id]) REFERENCES [foo].[permalinks]([id]); ",
       "ALTER TABLE [foo].[posts] DROP COLUMN [summary]; "
@@ -678,101 +677,104 @@ defmodule Tds.Ecto.TdsTest do
 
   end
 
-  # test "alter table with adding foreign key constraint" do
-  #   alter = {:alter, table(:posts),
-  #             [{:modify, :user_id, references(:users, on_delete: :delete_all), []}]
-  #           }
+  test "alter table with adding foreign key constraint" do
+    alter = {:alter, table(:posts),
+              [{:modify, :user_id, references(:users, on_delete: :delete_all, type: :bigserial), []}]
+            }
 
-  #   assert SQL.execute_ddl(alter) == """
-  #   ALTER TABLE [posts] ALTER COLUMN [user_id] bigint NULL ;
-  #   IF (OBJECT_ID('[posts_user_id_fkey]', 'F') IS NOT NULL)
-  #   BEGIN
-  #   ALTER TABLE [posts] DROP CONSTRAINT [posts_user_id_fkey]
-  #   END;
-  #   ALTER TABLE [posts] ADD CONSTRAINT [posts_user_id_fkey] FOREIGN KEY ([user_id]) REFERENCES [users]([id]) ON DELETE CASCADE ;
-  #   IF (OBJECT_ID('DF_user_id', 'D') IS NOT NULL)
-  #   BEGIN
-  #   ALTER TABLE [posts] DROP CONSTRAINT DF_user_id
-  #   END
-  #   """ |> remove_newlines
-  # end
+    assert SQL.execute_ddl(alter) == [
+      "IF (OBJECT_ID(N'[FK__posts_user_id]', 'F') IS NOT NULL) BEGIN ALTER TABLE [posts] DROP CONSTRAINT [FK__posts_user_id];  END; ",
+      "ALTER TABLE [posts] ALTER COLUMN [user_id] BIGINT; ",
+      "ALTER TABLE [posts] ADD CONSTRAINT [FK__posts_user_id] FOREIGN KEY ([user_id]) REFERENCES [users]([id]) ON DELETE CASCADE; "
+    ] |> IO.iodata_to_binary()
+  end
 
-  # test "create table with options" do
-  #   create = {:create, table(:posts, [options: "WITH FOO=BAR"]),
-  #              [{:add, :id, :serial, [primary_key: true]},
-  #               {:add, :created_at, :datetime, []}]}
-  #   assert SQL.execute_ddl(create) ==
-  #          ~s|CREATE TABLE [posts] ([id] bigint NOT NULL PRIMARY KEY IDENTITY, [created_at] datetime2 NULL) WITH FOO=BAR|
-  # end
+  test "create table with options" do
+    create = {:create, table(:posts, [options: "WITH FOO=BAR"]),
+               [{:add, :id, :serial, [primary_key: true]},
+                {:add, :created_at, :datetime, []}]}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE TABLE [posts] ([id] int IDENTITY(1,1), [created_at] datetime, CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id])) WITH FOO=BAR|
+  end
 
-  # test "rename table" do
-  #   rename = {:rename, table(:posts), table(:new_posts)}
-  #   assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'posts', 'new_posts'|
-  # end
+  test "rename table" do
+    rename = {:rename, table(:posts), table(:new_posts)}
+    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'posts', 'new_posts'|
+  end
 
-  # test "rename table with prefix" do
-  #   rename = {:rename, table(:posts, prefix: :foo), table(:new_posts, prefix: :foo)}
-  #   assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'foo.posts', 'foo.new_posts'|
-  # end
+  test "rename table with prefix" do
+    rename = {:rename, table(:posts, prefix: :foo), table(:new_posts, prefix: :foo)}
+    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'foo.posts', 'foo.new_posts'|
+  end
 
-  # test "rename column" do
-  #   rename = {:rename, table(:posts), :given_name, :first_name}
-  #   assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'posts.given_name', 'first_name', 'COLUMN'|
-  # end
+  test "rename column" do
+    rename = {:rename, table(:posts), :given_name, :first_name}
+    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'posts.given_name', 'first_name', 'COLUMN'|
+  end
 
-  # test "rename column in table with prefixes" do
-  #   rename = {:rename, table(:posts, prefix: :foo), :given_name, :first_name}
-  #   assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'foo.posts.given_name', 'first_name', 'COLUMN'|
-  # end
+  test "rename column in table with prefixes" do
+    rename = {:rename, table(:posts, prefix: :foo), :given_name, :first_name}
+    assert SQL.execute_ddl(rename) == ~s|EXEC sp_rename 'foo.posts.given_name', 'first_name', 'COLUMN'|
+  end
 
-  # test "create index" do
-  #   create = {:create, index(:posts, [:category_id, :permalink])}
-  #   assert SQL.execute_ddl(create) ==
-  #          ~s|CREATE INDEX [posts_category_id_permalink_index] ON [posts] ([category_id], [permalink])|
+  test "create index" do
+    create = {:create, index(:posts, [:category_id, :permalink])}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE INDEX [posts_category_id_permalink_index] ON [posts] ([category_id], [permalink]);|
 
-  #   create = {:create, index(:posts, ["lower(permalink)"], name: "posts$main")}
-  #   assert SQL.execute_ddl(create) ==
-  #          ~s|CREATE INDEX [posts$main] ON [posts] ([lower(permalink)])|
-  # end
+    # below should be handled with collation on column which is indexed 
 
-  # test "create index with prefix" do
-  #   create = {:create, index(:posts, [:category_id, :permalink], prefix: :foo)}
-  #   assert SQL.execute_ddl(create) ==
-  #          ~s|CREATE INDEX [posts_category_id_permalink_index]  ON  [foo].[posts]  (category_id, permalink)|
-  # end
+    # create = {:create, index(:posts, ["lower(permalink)"], name: "posts$main")}
+    # assert SQL.execute_ddl(create) ==
+    #        ~s|CREATE INDEX [posts$main] ON [posts] ([lower(permalink)])|
 
-  # test "create index asserting concurrency" do
-  #   create = {:create, index(:posts, ["lower(permalink)"], name: "posts$main", concurrently: true)}
-  #   assert SQL.execute_ddl(create) ==
-  #          ~s|CREATE INDEX `posts$main` ON `posts` (`lower(permalink)`) LOCK=NONE|
-  # end
+    create = {:create, index(:posts, ["[category_id] ASC", "[permalink] DESC"], name: "IX_posts_by_category")}
+    assert SQL.execute_ddl(create) ==
+      ~s|CREATE INDEX [IX_posts_by_category] ON [posts] ([category_id] ASC, [permalink] DESC);|
+  end
 
-  # test "create unique index" do
-  #   create = {:create, index(:posts, [:permalink], unique: true)}
-  #   assert SQL.execute_ddl(create) ==
-  #          ~s|CREATE UNIQUE INDEX `posts_permalink_index` ON `posts` (`permalink`)|
-  # end
+  test "create index with prefix" do
+    create = {:create, index(:posts, [:category_id, :permalink], prefix: :foo)}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE INDEX [posts_category_id_permalink_index] ON [foo].[posts] ([category_id], [permalink]);|
+  end
 
-  # test "create an index using a different type" do
-  #   create = {:create, index(:posts, [:permalink], using: :hash)}
-  #   assert SQL.execute_ddl(create) ==
-  #          ~s|CREATE INDEX `posts_permalink_index` ON `posts` (`permalink`) USING hash|
-  # end
+  test "create index asserting concurrency" do
+    create = {:create, index(:posts, [:permalink], name: "posts$main", concurrently: true)}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE INDEX [posts$main] ON [posts] ([permalink]) LOCK=NONE;|
+  end
 
-  # test "drop index" do
-  #   drop = {:drop, index(:posts, [:id], name: "posts$main")}
-  #   assert SQL.execute_ddl(drop) == ~s|DROP INDEX `posts$main` ON `posts`|
-  # end
+  test "create unique index" do
+    create = {:create, index(:posts, [:permalink], unique: true)}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE UNIQUE INDEX [posts_permalink_index] ON [posts] ([permalink]);|
+    create = {:create, index(:posts, [:permalink], unique: true, prefix: :foo)}
+    assert SQL.execute_ddl(create) ==
+           ~s|CREATE UNIQUE INDEX [posts_permalink_index] ON [foo].[posts] ([permalink]);|
+  end
 
-  # test "drop index with prefix" do
-  #   drop = {:drop, index(:posts, [:id], name: "posts_category_id_permalink_index", prefix: :foo)}
-  #   assert SQL.execute_ddl(drop) == ~s|DROP INDEX [posts_category_id_permalink_index]  ON  [foo].[posts]|
-  # end
+  test "create an index using a different type" do
+    create = {:create, index(:posts, [:permalink], using: :hash)}
+    assert_raise ArgumentError, ~r"TDS adapter does not support using in indexes.", fn ->
+      SQL.execute_ddl(create)
+    end
+  end
 
-  # test "drop index asserting concurrency" do
-  #   drop = {:drop, index(:posts, [:id], name: "posts$main", concurrentlyrently: true)}
-  #   assert SQL.execute_ddl(drop) == ~s|DROP INDEX `posts$main` ON `posts` LOCK=NONE|
-  # end
+  test "drop index" do
+    drop = {:drop, index(:posts, [:id], name: "posts$main")}
+    assert SQL.execute_ddl(drop) == ~s|DROP INDEX [posts$main] ON [posts];|
+  end
+
+  test "drop index with prefix" do
+    drop = {:drop, index(:posts, [:id], name: "posts_category_id_permalink_index", prefix: :foo)}
+    assert SQL.execute_ddl(drop) == ~s|DROP INDEX [posts_category_id_permalink_index] ON [foo].[posts];|
+  end
+
+  test "drop index asserting concurrency" do
+    drop = {:drop, index(:posts, [:id], name: "posts$main", concurrently: true)}
+    assert SQL.execute_ddl(drop) == ~s|DROP INDEX [posts$main] ON [posts] LOCK=NONE;|
+  end
 
   defp remove_newlines(string) do
     string |> String.strip |> String.replace("\n", " ")
