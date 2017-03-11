@@ -739,6 +739,16 @@ defmodule Tds.Ecto.TdsTest do
            ~s|CREATE INDEX [posts_category_id_permalink_index] ON [foo].[posts] ([category_id], [permalink]);|
   end
 
+  test "create index with prefix if not exists" do
+    create = {:create_if_not_exists, index(:posts, [:category_id, :permalink], prefix: :foo)}
+    assert SQL.execute_ddl(create) ==
+      ["IF NOT EXISTS (SELECT name FROM sys.indexes ", 
+       "WHERE name = N'posts_category_id_permalink_index' ",
+       "AND object_id = OBJECT_ID(N'foo.posts')) ",
+       "CREATE INDEX [posts_category_id_permalink_index] ON [foo].[posts] ([category_id], [permalink]);"]
+       |> IO.iodata_to_binary()
+  end
+
   test "create index asserting concurrency" do
     create = {:create, index(:posts, [:permalink], name: "posts$main", concurrently: true)}
     assert SQL.execute_ddl(create) ==
@@ -770,6 +780,17 @@ defmodule Tds.Ecto.TdsTest do
     drop = {:drop, index(:posts, [:id], name: "posts_category_id_permalink_index", prefix: :foo)}
     assert SQL.execute_ddl(drop) == ~s|DROP INDEX [posts_category_id_permalink_index] ON [foo].[posts];|
   end
+
+  test "drop index with prefix if exists" do
+    drop = {:drop_if_exists, index(:posts, [:id], name: "posts_category_id_permalink_index", prefix: :foo)}
+    assert SQL.execute_ddl(drop) == 
+      ["IF EXISTS (SELECT name FROM sys.indexes ", 
+       "WHERE name = N'posts_category_id_permalink_index' ",
+       "AND object_id = OBJECT_ID(N'foo.posts')) ",
+       "DROP INDEX [posts_category_id_permalink_index] ON [foo].[posts];"] 
+       |> IO.iodata_to_binary()
+  end
+
 
   test "drop index asserting concurrency" do
     drop = {:drop, index(:posts, [:id], name: "posts$main", concurrently: true)}

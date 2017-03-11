@@ -716,13 +716,15 @@ if Code.ensure_loaded?(Tds) do
        pkeys]
         |> IO.iodata_to_binary() 
     end
-    def execute_ddl({:create, %Index{} = index}) do
+    def execute_ddl({command, %Index{} = index}) when command in [:create, :create_if_not_exists] do
       prefix = index.prefix
       if index.using do
         error!(nil, "TDS adapter does not support using in indexes.")
       end
 
-      query = [["CREATE", if_do(index.unique, " UNIQUE"), " INDEX ",
+      query = [[
+        Utils.if_index_not_exists(command == :create_if_not_exists, index.name, unquoted_name(prefix, index.table)),
+        "CREATE", if_do(index.unique, " UNIQUE"), " INDEX ",
         quote_name(index.name),
         " ON ",
         quote_table(prefix, index.table), " ",
@@ -732,28 +734,22 @@ if Code.ensure_loaded?(Tds) do
         if_do(index.concurrently, " LOCK=NONE"), ";"]]
         |> IO.iodata_to_binary
     end
-    def execute_ddl({:create_if_not_exists, %Index{}}),
-      do: error!(nil, "TDS adapter does not support create if not exists for index")
-
     def execute_ddl({:create, %Constraint{check: check}}) when is_binary(check),
       do: error!(nil, "TDS adapter does not support check constraints")
     def execute_ddl({:create, %Constraint{exclude: exclude}}) when is_binary(exclude),
       do: error!(nil, "TDS adapter does not support exclusion constraints")
 
-    def execute_ddl({:drop, %Index{} = index}) do
+    def execute_ddl({command, %Index{} = index}) when command in [:drop, :drop_if_exists] do
       prefix = index.prefix
-      query = [
-        "DROP INDEX ",
-        quote_name(index.name),
-        " ON ", quote_table(prefix, index.table),
-        if_do(index.concurrently, " LOCK=NONE"), 
-        ";"] |> IO.iodata_to_binary
+      [Utils.if_index_exists(command == :drop_if_exists, index.name, unquoted_name(prefix, index.table)),
+       "DROP INDEX ",
+       quote_name(index.name),
+       " ON ", quote_table(prefix, index.table),
+       if_do(index.concurrently, " LOCK=NONE"), 
+       ";"] |> IO.iodata_to_binary
     end
     def execute_ddl({:drop, %Constraint{}}),
       do: error!(nil, "TDS adapter does not support constraints")
-
-    def execute_ddl({:drop_if_exists, %Index{}}),
-      do: error!(nil, "TDS adapter does not support drop if exists for index")
 
     def execute_ddl({:rename, %Table{} = current_table, %Table{} = new_table}) do
       [["EXEC sp_rename '", unquoted_name(current_table.prefix, current_table.name),"', '", unquoted_name(new_table.prefix, new_table.name), "'"]]
