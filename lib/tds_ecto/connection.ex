@@ -43,8 +43,8 @@ if Code.ensure_loaded?(Tds) do
       opts = Keyword.put(opts, :parameters, params)
 
 			case DBConnection.prepare_execute(pid, query, params, opts) do
-        {:ok, _, %Tds.Result{columns: nil, command: nil, num_rows: 1, rows: []}} ->
-          {:ok,  %Tds.Result{columns: nil, command: nil, num_rows: 1, rows: nil}}
+        {:ok, _, %Tds.Result{columns: nil, command: nil, num_rows: num_rows, rows: []}} when num_rows > -1 ->
+          {:ok,  %Tds.Result{columns: nil, command: nil, num_rows: num_rows, rows: nil}}
         {:ok, _, query} -> {:ok, query}
         {:error, _} = err -> err
       end
