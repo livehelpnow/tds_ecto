@@ -126,16 +126,16 @@ defmodule Tds.Ecto do
     end
   end
 
-  defp append_versions(_table, [], contents) do
-    {:ok, contents}
-  end
-  defp append_versions(table, versions, contents) do
-    {:ok,
-      contents <>
-      "INSERT INTO [#{table}] (version) VALUES " <>
-      Enum.map_join(versions, ", ", &"(#{&1})") <>
-      ~s[;\n\n]}
-  end
+  # defp append_versions(_table, [], contents) do
+  #   {:ok, contents}
+  # end
+  # defp append_versions(table, versions, contents) do
+  #   {:ok,
+  #     contents <>
+  #     "INSERT INTO [#{table}] (version) VALUES " <>
+  #     Enum.map_join(versions, ", ", &"(#{&1})") <>
+  #     ~s[;\n\n]}
+  # end
 
   # def execute_ddl(repo, definition, opts) do
   #   sql = @conn.execute_ddl(definition, repo)

@@ -22,7 +22,7 @@ if Code.ensure_loaded?(Tds) do
     end
     require Ecto.Schema
     alias Tds.Query
-    alias Tds.Parameter
+    #alias Tds.Parameter
 
     def prepare_execute(pid, _name, statement, params, opts \\ []) do
       query = %Query{statement: statement}
@@ -60,6 +60,10 @@ if Code.ensure_loaded?(Tds) do
         {:ok, _, query} -> {:ok, query}
         {:error, _} = err -> err
       end
+    end
+
+    def stream(_conn, _sql, _params, _opts) do
+      raise "Not implemented yet."
     end
 
     def query(conn, sql, params, opts) do
@@ -722,7 +726,7 @@ if Code.ensure_loaded?(Tds) do
         error!(nil, "TDS adapter does not support using in indexes.")
       end
 
-      query = [[
+      [[
         Utils.if_index_not_exists(command == :create_if_not_exists, index.name, unquoted_name(prefix, index.table)),
         "CREATE", if_do(index.unique, " UNIQUE"), " INDEX ",
         quote_name(index.name),
@@ -788,7 +792,7 @@ if Code.ensure_loaded?(Tds) do
       [quote_name(name), " ", column_type(type, opts), column_options(table, name, opts)]
     end
 
-    defp column_changes(statement, table, columns \\ []) do
+    defp column_changes(statement, table, columns) do
       # intersperse_map(columns, " ", &column_change(statement, table, &1))
       for column <- columns do
         column_change(statement, table, column) 
@@ -856,7 +860,7 @@ if Code.ensure_loaded?(Tds) do
       do: [" CONSTRAINT ", constraint_name("DF", table, name), " DEFAULT (", to_string(literal), ")"]
     defp default_expr(table, name, {:ok, {:fragment, expr}}),
       do: [" CONSTRAINT ", constraint_name("DF", table, name), " DEFAULT (", expr, ")"]
-    defp default_expr(table, name, :error),
+    defp default_expr(_table, _name, :error),
       do: []
 
     defp constraint_name(type, table, name), do: quote_name("#{type}_#{table.prefix}_#{table.name}_#{name}")
