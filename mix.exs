@@ -1,10 +1,12 @@
 defmodule TDS.Ecto.Mixfile do
   use Mix.Project
 
+  @version "2.0.0-alpha"
+
   def project do
     [
       app: :tds_ecto,
-      version: "0.1.0-alpha",
+      version: @version,
       elixir: "~> 1.0",
       deps: deps,
       description: description,
@@ -21,15 +23,15 @@ defmodule TDS.Ecto.Mixfile do
 
   defp deps do
     [
-      {:ecto, "~> 2.0.0-rc"},
-      {:tds, github: "livehelpnow/tds", branch: "ecto2"},
+      {:ecto, "~> 2.1"},
+      {:tds, github: "mjaric/tds", branch: "ecto2"},
       {:poison, only: :test}
     ]
   end
 
   defp description do
     """
-    MSSQL / TDS Adapter for Ecto.
+    MSSQL / TDS Adapter v#{@version} for Ecto.
     """
   end
 
