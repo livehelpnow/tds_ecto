@@ -25,7 +25,7 @@ Application.put_env(:ecto, TestRepo,
   adapter: Tds.Ecto,
   hostname: System.get_env("SQL_HOSTNAME") || "localhost",
   username: System.get_env("SQL_USERNAME") || "sa",
-  password: System.get_env("SQL_PASSWORD") || "mssql",
+  password: System.get_env("SQL_PASSWORD") || "some!Password",
   database: "ecto_test",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 10,
@@ -44,7 +44,7 @@ Application.put_env(:ecto, PoolRepo,
   pool: pool,
   hostname: System.get_env("SQL_HOSTNAME") || "localhost",
   username: System.get_env("SQL_USERNAME") || "sa",
-  password: System.get_env("SQL_PASSWORD") || "mssql",
+  password: System.get_env("SQL_PASSWORD") || "some!Password",
   database: "ecto_test",
   pool_size: 10)
 
@@ -70,6 +70,14 @@ defmodule Ecto.Integration.Case do
   end
 end
 
+# :debugger.start()
+# :int.ni(Tds.Ecto)
+# :int.break(Tds.Ecto, 164)
+
+# :dbg.tracer()
+# :dbg.p(:all,:c)
+# :dbg.tpl(Tds.Protocol, :_, :x)
+
 :erlang.system_flag :backtrace_depth, 50
 
 {:ok, _} = Tds.Ecto.ensure_all_started(TestRepo, :temporary)
@@ -81,4 +89,7 @@ _   = Tds.Ecto.storage_down(TestRepo.config)
 {:ok, _pid} = PoolRepo.start_link
 :ok = Ecto.Migrator.up(TestRepo, 0, Ecto.Integration.Migration, log: false)
 Ecto.Adapters.SQL.Sandbox.mode(TestRepo, :manual)
+
+# :dbg.stop_clear()
+
 Process.flag(:trap_exit, true)

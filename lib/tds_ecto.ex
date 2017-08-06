@@ -1,5 +1,4 @@
 defmodule Tds.Ecto do
-
   @moduledoc """
   Adapter module for MSSQL.
 
@@ -79,10 +78,10 @@ defmodule Tds.Ecto do
   defp bool_decode(1),      do: {:ok, true}
   defp bool_decode(x),      do: {:ok, x}
 
-  defp json_decode(x) when is_binary(x),  do: {:ok, json_library.decode!(x)}
+  defp json_decode(x) when is_binary(x),  do: {:ok, json_library().decode!(x)}
   defp json_decode(x),                    do: {:ok, x}
 
-  defp json_library, do: Application.get_env(:ecto, :json_library)
+  defp json_library(), do: Application.get_env(:ecto, :json_library)
 
   # Storage API
   @doc false
@@ -160,7 +159,6 @@ defmodule Tds.Ecto do
 
     task = Task.Supervisor.async_nolink(pid, fn ->
       {:ok, conn} = Tds.start_link(opts)
-
       value = Tds.Ecto.Connection.execute(conn, sql_command, [], opts)
       GenServer.stop(conn)
       value

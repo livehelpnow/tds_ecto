@@ -8,9 +8,9 @@ defmodule TDS.Ecto.Mixfile do
       app: :tds_ecto,
       version: @version,
       elixir: "~> 1.0",
-      deps: deps,
-      description: description,
-      package: package
+      deps: deps(),
+      description: description(),
+      package: package()
    ]
   end
 
@@ -21,15 +21,16 @@ defmodule TDS.Ecto.Mixfile do
     [applications: [:tds, :ecto]]
   end
 
-  defp deps do
+  defp deps() do
     [
       {:ecto, "~> 2.1"},
-      {:tds, github: "mjaric/tds", branch: "ecto2"},
-      {:poison, only: :test}
+      #{:tds, path: "../tds"},
+      {:tds, github: "livehelpnow/tds", branch: "ecto2"},
+      {:poison, ">= 0.0.0", only: :test}
     ]
   end
 
-  defp description do
+  defp description() do
     """
     MSSQL / TDS Adapter v#{@version} for Ecto.
     """
