@@ -8,7 +8,7 @@ defmodule Tds.Ecto.StorageTest do
       pool: Ecto.Adapters.SQL.Sandbox,
       hostname: System.get_env("SQL_HOSTNAME") || "localhost",
       username: System.get_env("SQL_USERNAME") || "sa",
-      password: System.get_env("SQL_PASSWORD") || "mssql",]
+      password: System.get_env("SQL_PASSWORD") || "some!Password",]
   end
 
   def wrong_params() do

@@ -5,3 +5,4 @@ debug.log
 /deps
 erl_crash.dump
 *.ez
+.vscode/  
