@@ -1,4 +1,8 @@
+debug.log
+.idea
+.iml
 /_build
 /deps
 erl_crash.dump
 *.ez
+.vscode/  
