@@ -26,10 +26,10 @@ if Code.ensure_loaded?(Tds) do
 
     def prepare_execute(pid, _name, statement, params, opts \\ []) do
       query = %Query{statement: statement}
-      {params, _} = Enum.map_reduce params, 1, fn(param, acc) ->
+      {params, _} = Enum.map_reduce(params, 1, fn(param, acc) ->
         {value, type} = prepare_param(param)
         {%Tds.Parameter{name: "@#{acc}", value: value, type: type}, acc + 1}
-      end
+      end)
       opts = Keyword.put(opts, :parameters, params)
       DBConnection.prepare_execute(pid, query, params, opts)
     end
@@ -81,10 +81,16 @@ if Code.ensure_loaded?(Tds) do
     
     defp prepare_param(%Ecto.Query.Tagged{value: true, type: :boolean}),                                 do: {1, :boolean}
     defp prepare_param(%Ecto.Query.Tagged{value: false, type: :boolean}),                                do: {0, :boolean}
+    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :string})                                  do 
+      case :unicode.characters_to_binary(value, :utf8, {:utf16, :little}) do
+        {:error, _, _} -> {value, :binary}
+        val -> {val, :string}
+      end
+    end
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}) when value == "",                do: {value, :string}
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}),                                 do: {value, :binary}
     defp prepare_param(%Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime}) when us > 0, do: {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
-    defp prepare_param(%Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,_}}, type: :datetime}),             do: {{{y,m,d},{hh,mm,ss}}, :datetime}
+    defp prepare_param(%Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,_}}, type: :datetime}),              do: {{{y,m,d},{hh,mm,ss}}, :datetime}
     defp prepare_param(%Ecto.Query.Tagged{value: nil, type: type}) when type in [:binary_id, :uuid],     do: {nil, :binary}
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: type}) when type in [:binary_id, :uuid]    do
       if String.length(value) > 16 do
@@ -99,6 +105,7 @@ if Code.ensure_loaded?(Tds) do
     defp prepare_param(%{} = value),                                                                       do: {json_library().encode!(value), :string}
     defp prepare_param(value),                                                                             do: param(value)
 
+    defp
     defp param(value) when is_binary(value) do
       case :unicode.characters_to_binary(value, :utf8, {:utf16, :little}) do
         {:error, _, _} -> {value, :binary}

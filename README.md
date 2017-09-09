@@ -69,7 +69,7 @@ Add Tds as a dependency in your `mix.exs` file.
 
 ```elixir
 def deps do
-  [{:tds_ecto, "~> 2.0.0-alpha.1", github: "livehelpnow/tds_ecto", tag: "2.0.0-alpha.2"}]
+  [{:tds_ecto, github: "livehelpnow/tds_ecto", tag: "2.0.0-alpha.3"}]
 end
 ```
 
