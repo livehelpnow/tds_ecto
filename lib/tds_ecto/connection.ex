@@ -105,7 +105,6 @@ if Code.ensure_loaded?(Tds) do
     defp prepare_param(%{} = value),                                                                       do: {json_library().encode!(value), :string}
     defp prepare_param(value),                                                                             do: param(value)
 
-    defp
     defp param(value) when is_binary(value) do
       case :unicode.characters_to_binary(value, :utf8, {:utf16, :little}) do
         {:error, _, _} -> {value, :binary}
