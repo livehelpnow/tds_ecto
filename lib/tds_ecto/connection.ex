@@ -96,7 +96,7 @@ if Code.ensure_loaded?(Tds) do
     end
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: type}) when type in [:binary_id, :uuid],     do: {value, type}
     defp prepare_param(%{__struct__: _} = value),                                                          do: {value, nil}
-    defp prepare_param(%{} = value),                                                                       do: {json_library.encode!(value), :string}
+    defp prepare_param(%{} = value),                                                                       do: {json_library().encode!(value), :string}
     defp prepare_param(value),                                                                             do: param(value)
 
     defp param(value) when is_binary(value) do
@@ -175,8 +175,8 @@ if Code.ensure_loaded?(Tds) do
 
     def all(query) do
       sources = create_names(query)
-
-      from     = from(sources, query.lock)
+     
+      from     = from(query, sources)
       select   = select(query, sources)
       join     = join(query, sources)
       where    = where(query, sources)
@@ -244,8 +244,7 @@ if Code.ensure_loaded?(Tds) do
     defp on_conflict({:replace_all, _, []}, _header) do
       error!(nil, "The :replace_all option is not supported in insert/insert_all by TDS")
     end
-    defp on_conflict({query, _, []}, _header) do
-      IO.puts("#{inspect(query)}")
+    defp on_conflict({_query, _, []}, _header) do
       error!(nil, "The query as option for on_conflict is not supported in insert/insert_all by TDS yet.")
     end
 
@@ -303,37 +302,38 @@ if Code.ensure_loaded?(Tds) do
 
     defp handle_call(fun, _arity), do: {:fun, Atom.to_string(fun)}
 
-    defp select(%Query{select: %SelectExpr{fields: fields}, distinct: []} = query, sources) do
-      "SELECT " <> 
-        limit(query, sources) <> 
-        select(fields, sources, query)
+    defp select(%Query{select: %{fields: fields}} = query, sources) do
+      [ "SELECT",
+        distinct(query, sources),
+        limit(query, sources),
+        ?\s | select_fields(fields, sources, query)] 
+      |> IO.iodata_to_binary() 
     end
 
-    defp select(%Query{select: %SelectExpr{fields: fields}} = query, sources) do
-      "SELECT " <>
-        distinct(query, sources) <>
-        limit(query, sources) <>
-        select(fields, sources, query)
-    end
-
-    defp select([], sources, %Query{select: %SelectExpr{expr: val}} = query) do
+    defp select_fields([], sources, %Query{select: %SelectExpr{expr: val}} = query) do
       expr(val, sources, query)
     end
-    defp select(fields, sources, query) do
-      Enum.map_join(fields, ", ", &expr(&1, sources, query))
+    defp select_fields(fields, sources, query) do
+      [ Enum.map_join(fields, ", ", fn 
+          {key, value} -> 
+            expr(value, sources, query) <> " AS " <> quote_name(key)
+          value ->
+            expr(value, sources, query)
+          end)
+      ]
     end
 
     defp distinct(%Query{distinct: nil}, _sources), do: ""
-    defp distinct(%Query{distinct: %QueryExpr{expr: true}}, _sources),  do: "DISTINCT "
+    defp distinct(%Query{distinct: []}, _sources), do: ""
+    defp distinct(%Query{distinct: %QueryExpr{expr: true}}, _sources),  do: " DISTINCT"
     defp distinct(%Query{distinct: %QueryExpr{expr: false}}, _sources), do: ""
     defp distinct(%Query{distinct: %QueryExpr{expr: _exprs}} = query, _sources) do
       error!(query, "MSSQL does not allow expressions in distinct")
     end
 
-    defp from(sources, lock) do
-      
-      {table, name, _model} = elem(sources, 0)
-      "FROM #{table} AS #{name}" <> lock(lock) |> String.strip
+    defp from(%{from: from} = query, sources) do
+      {from, name} = get_source(query, sources, 0, from)
+      "FROM #{from} AS #{name}" <> lock(query.lock) |> String.strip
     end
 
     defp update_fields(%Query{updates: updates} = query, sources) do
@@ -419,7 +419,7 @@ if Code.ensure_loaded?(Tds) do
     defp limit(%Query{limit: nil}, _sources), do: ""
     defp limit(%Query{limit: %QueryExpr{expr: expr}} = query, sources) do
       case Map.get(query, :offset) do
-        nil -> "TOP(" <> expr(expr, sources, query) <> ") "
+        nil -> " TOP(" <> expr(expr, sources, query) <> ")"
         _ -> ""
       end
 
@@ -465,7 +465,7 @@ if Code.ensure_loaded?(Tds) do
     defp operator_to_boolean(:or), do: " OR "
 
     defp paren_expr(expr, sources, query) do
-      "(" <> expr(expr, sources, query) <> ")"
+      [?(, expr(expr, sources, query), ?)] |> IO.iodata_to_binary()
     end
     # :^ - represents parameter ix is index number 
     defp expr({:^, [], [ix]}, _sources, _query) do
@@ -479,10 +479,10 @@ if Code.ensure_loaded?(Tds) do
 
     defp expr({:&, _, [idx, fields, _counter]}, sources, query) do
       {table, name, schema} = elem(sources, idx)
-      unless schema do
-        error!(query, "TDS adapter requires a model when using selector #{inspect name} but " <>
-                             "only the table #{inspect table} was given. Please specify a schema " <>
-                             "or specify exactly which fields from #{inspect name} you desire")
+      if is_nil(schema) and is_nil(fields) do
+        error!(query, "TDS adapter requires a schema module when using selector #{inspect name} but " <>
+                      "none was given. Please specify schema " <>
+                      "or specify exactly which fields from #{inspect name} you desire")
       end
 
       Enum.map_join(fields, ", ", &"#{name}.#{quote_name(&1)}")
@@ -514,6 +514,10 @@ if Code.ensure_loaded?(Tds) do
 
     defp expr({:not, _, [expr]}, sources, query) do
       "NOT (" <> expr(expr, sources, query) <> ")"
+    end
+    
+    defp expr(%Ecto.SubQuery{query: query}, _sources, _query) do
+      all(query)
     end
 
     defp expr({:fragment, _, [kw]}, _sources, query) when is_list(kw) or tuple_size(kw) == 3 do
@@ -549,10 +553,7 @@ if Code.ensure_loaded?(Tds) do
       case handle_call(fun, length(args)) do
         {:binary_op, op} ->
           [left, right] = args
-          op_to_binary(left, sources, query) <>
-          " #{op} "
-          <> op_to_binary(right, sources, query)
-
+          op_to_binary(left, sources, query) <> " #{op} " <> op_to_binary(right, sources, query)
         {:fun, fun} ->
           "#{fun}(" <> modifier <> Enum.map_join(args, ", ", &expr(&1, sources, query)) <> ")"
       end
@@ -668,8 +669,10 @@ if Code.ensure_loaded?(Tds) do
             end
           {:fragment, _, _} ->
             {nil, "f" <> Integer.to_string(pos), nil}
+          %Ecto.SubQuery{} ->
+            {nil, "s" <> Integer.to_string(pos), nil}
         end
-      [current|create_names(prefix, sources, pos + 1, limit)]
+      [current | create_names(prefix, sources, pos + 1, limit)]
     end
 
     defp create_names(_prefix, _sources, pos, pos) do
@@ -736,7 +739,7 @@ if Code.ensure_loaded?(Tds) do
         # if_do(is_list(index.include), [" INCLUDE (", intersperse_map(index.columns, ", ", &index_expr/1), ")"]),
         if_do(index.using, [" USING ", to_string(index.using)]),
         if_do(index.concurrently, " LOCK=NONE"), ";"]]
-        |> IO.iodata_to_binary
+        |> IO.iodata_to_binary()
     end
     def execute_ddl({:create, %Constraint{check: check}}) when is_binary(check),
       do: error!(nil, "TDS adapter does not support check constraints")
@@ -750,18 +753,18 @@ if Code.ensure_loaded?(Tds) do
        quote_name(index.name),
        " ON ", quote_table(prefix, index.table),
        if_do(index.concurrently, " LOCK=NONE"), 
-       ";"] |> IO.iodata_to_binary
+       ";"] |> IO.iodata_to_binary()
     end
     def execute_ddl({:drop, %Constraint{}}),
       do: error!(nil, "TDS adapter does not support constraints")
 
     def execute_ddl({:rename, %Table{} = current_table, %Table{} = new_table}) do
       [["EXEC sp_rename '", unquoted_name(current_table.prefix, current_table.name),"', '", unquoted_name(new_table.prefix, new_table.name), "'"]]
-      |> IO.iodata_to_binary
+      |> IO.iodata_to_binary()
     end
     def execute_ddl({:rename, table, current_column, new_column}) do
       [["EXEC sp_rename '", unquoted_name(table.prefix, table.name, current_column),"', '", unquoted_name(new_column), "', 'COLUMN'"]]
-      |> IO.iodata_to_binary
+      |> IO.iodata_to_binary()
     end
     def execute_ddl(string) when is_binary(string), do: [string]
     def execute_ddl(keyword) when is_list(keyword), do: error!(nil, "TDS adapter does not support keyword lists in execute")
@@ -774,7 +777,7 @@ if Code.ensure_loaded?(Tds) do
 
       case pks do
         [] -> []
-        _  -> [[prefix, "PRIMARY KEY CLUSTERED (#{intersperse_map(pks, ", ", &quote_name/1)})"] |> IO.iodata_to_binary]
+        _  -> [[prefix, "PRIMARY KEY CLUSTERED (#{intersperse_map(pks, ", ", &quote_name/1)})"] |> IO.iodata_to_binary()]
       end
     end
 
@@ -925,10 +928,10 @@ if Code.ensure_loaded?(Tds) do
 
     ## Helpers
 
-    # defp get_source(query, sources, ix, source) do
-    #   {expr, name, _schema} = elem(sources, ix)
-    #   {expr || paren_expr(source, sources, query), name}
-    # end
+    defp get_source(query, sources, ix, source) do
+      {expr, name, _schema} = elem(sources, ix)
+      {expr || paren_expr(source, sources, query), name}
+    end
 
     defp quote_name(name)
     defp quote_name(name) when is_atom(name),
@@ -976,7 +979,7 @@ if Code.ensure_loaded?(Tds) do
     defp intersperse_map([elem], _separator, mapper, acc),
       do: acc ++ mapper.(elem)
     defp intersperse_map([elem | rest], separator, mapper, acc) do 
-      statement = [mapper.(elem), separator] |> IO.iodata_to_binary
+      statement = [mapper.(elem), separator] |> IO.iodata_to_binary()
       acc = acc ++ [statement]
       intersperse_map(rest, separator, mapper, acc)
     end

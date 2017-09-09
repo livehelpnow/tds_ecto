@@ -11,8 +11,8 @@ defmodule Tds.Ecto.TdsTest do
   defmodule Model do
     use Ecto.Schema
 
-    import Ecto
-    import Ecto.Changeset
+    # import Ecto
+    # import Ecto.Changeset
     import Ecto.Query
 
     schema "model" do
@@ -33,8 +33,8 @@ defmodule Tds.Ecto.TdsTest do
   defmodule Model2 do
     use Ecto.Schema
 
-    import Ecto
-    import Ecto.Changeset
+    # import Ecto
+    # import Ecto.Changeset
     import Ecto.Query
 
     schema "model2" do
@@ -47,8 +47,8 @@ defmodule Tds.Ecto.TdsTest do
   defmodule Model3 do
     use Ecto.Schema
 
-    import Ecto
-    import Ecto.Changeset
+    # import Ecto
+    # import Ecto.Changeset
     import Ecto.Query
 
     @schema_prefix "foo"
@@ -57,9 +57,14 @@ defmodule Tds.Ecto.TdsTest do
     end
   end
 
-  defp normalize(query, operation \\ :all) do
-    {query, _params, _key} = Ecto.Query.Planner.prepare(query, operation, Tds.Ecto, 0)
-    Ecto.Query.Planner.normalize(query, operation, Tds.Ecto, 0)
+  defp normalize(query, operation \\ :all, counter \\ 0) do
+    {query, _params, _key} = Ecto.Query.Planner.prepare(query, operation, Tds.Ecto, counter)
+    case Ecto.Query.Planner.normalize(query, operation, Tds.Ecto, counter) do
+      # ecto >= 2.2.+
+      {query, _} -> query
+      # ecto < 2.2.0
+      query -> query
+    end
   end
 
   test "from" do
@@ -75,20 +80,30 @@ defmodule Tds.Ecto.TdsTest do
   test "from without model" do
     query = "model" |> select([r], r.x) |> normalize
     assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0}
-
-    assert_raise Ecto.QueryError, ~r"TDS adapter requires a model", fn ->
+    
+    assert_raise Ecto.QueryError, ~r"TDS adapter requires a schema", fn ->
       SQL.all from(p in "posts", select: p) |> normalize()
     end
   end
+
   test "from with schema source" do
     query = "public.posts" |> select([r], r.x) |> normalize
     assert SQL.all(query) == ~s{SELECT p0.[x] FROM [public].[posts] AS p0}
   end
+  
   test "from with schema source, linked database" do
     query = "externaldb.public.posts" |> select([r], r.x) |> normalize
     assert_raise ArgumentError, ~r"TDS addapter do not support query of external database or linked server table", fn ->
       SQL.all(query)
     end
+  end
+
+  test "subquery" do
+    query = subquery("posts" |> select([r], %{x: r.x, y: r.y})) |> select([r], r.x) |> normalize
+    assert SQL.all(query) == ~s{SELECT s0.[x] FROM (SELECT p0.[x], p0.[y] FROM [posts] AS p0) AS s0}
+
+    query = subquery("posts" |> select([r], %{x: r.x, z: r.y})) |> select([r], r) |> normalize
+    assert SQL.all(query) == ~s{SELECT s0.[x], s0.[z] FROM (SELECT p0.[x], p0.[y] FROM [posts] AS p0) AS s0}
   end
 
   test "select" do
@@ -497,7 +512,7 @@ defmodule Tds.Ecto.TdsTest do
 
   # # DDL
 
-  import Ecto.Migration, only: [table: 1, table: 2, index: 2, index: 3, references: 1, references: 2, constraint: 3]
+  import Ecto.Migration, only: [table: 1, table: 2, index: 2, index: 3, references: 1, references: 2]
 
   test "executing a string during migration" do
     assert SQL.execute_ddl("example") ==  ["example"]
@@ -797,8 +812,8 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.execute_ddl(drop) == ~s|DROP INDEX [posts$main] ON [posts] LOCK=NONE;|
   end
 
-  defp remove_newlines(string) do
-    string |> String.strip |> String.replace("\n", " ")
-  end
+  # defp remove_newlines(string) do
+  #   string |> String.strip |> String.replace("\n", " ")
+  # end
 
 end
