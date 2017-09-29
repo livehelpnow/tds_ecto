@@ -100,10 +100,10 @@ defmodule Tds.Ecto.TdsTest do
 
   test "subquery" do
     query = subquery("posts" |> select([r], %{x: r.x, y: r.y})) |> select([r], r.x) |> normalize
-    assert SQL.all(query) == ~s{SELECT s0.[x] FROM (SELECT p0.[x], p0.[y] FROM [posts] AS p0) AS s0}
+    assert SQL.all(query) == ~s{SELECT s0.[x] FROM (SELECT p0.[x] AS [x], p0.[y] AS [y] FROM [posts] AS p0) AS s0}
 
     query = subquery("posts" |> select([r], %{x: r.x, z: r.y})) |> select([r], r) |> normalize
-    assert SQL.all(query) == ~s{SELECT s0.[x], s0.[z] FROM (SELECT p0.[x], p0.[y] FROM [posts] AS p0) AS s0}
+    assert SQL.all(query) == ~s{SELECT s0.[x], s0.[z] FROM (SELECT p0.[x] AS [x], p0.[y] AS [z] FROM [posts] AS p0) AS s0}
   end
 
   test "select" do
@@ -275,6 +275,17 @@ defmodule Tds.Ecto.TdsTest do
 
     query = Model |> select([e], 1 in [1, ^2, 3]) |> normalize
     assert SQL.all(query) == ~s{SELECT 1 IN (1,@1,3) FROM [model] AS m0}
+  end
+
+  test "in expression with multiple where conditions" do
+    xs = [1, 2, 3]
+    y = 4
+    query = Model 
+      |> where([m], m.x in ^xs) 
+      |> where([m], m.y == ^y) 
+      |> select([m], m.x) 
+      
+    assert SQL.all(query |> normalize) == ~s{SELECT m0.[x] FROM [model] AS m0 WHERE (m0.[x] IN (@1,@2,@3)) AND (m0.[y] = @4)}
   end
 
   test "having" do
@@ -811,9 +822,5 @@ defmodule Tds.Ecto.TdsTest do
     drop = {:drop, index(:posts, [:id], name: "posts$main", concurrently: true)}
     assert SQL.execute_ddl(drop) == ~s|DROP INDEX [posts$main] ON [posts] LOCK=NONE;|
   end
-
-  # defp remove_newlines(string) do
-  #   string |> String.strip |> String.replace("\n", " ")
-  # end
 
 end

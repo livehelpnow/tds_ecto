@@ -1,7 +1,7 @@
 defmodule TDS.Ecto.Mixfile do
   use Mix.Project
 
-  @version "2.0.0-alpha.2"
+  @version "2.0.0-alpha.3"
 
   def project do
     [
@@ -23,8 +23,8 @@ defmodule TDS.Ecto.Mixfile do
 
   defp deps() do
     [
-      {:ecto, "~> 2.1"},
-      #{:tds, path: "../tds"},
+      {:ecto, ">= 2.0.0"},
+      # {:tds, path: "../tds"},
       {:tds, github: "livehelpnow/tds", branch: "master"},
       {:poison, ">= 0.0.0", only: :test}
     ]

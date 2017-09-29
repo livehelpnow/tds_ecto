@@ -474,8 +474,8 @@ if Code.ensure_loaded?(Tds) do
       [?(, expr(expr, sources, query), ?)] |> IO.iodata_to_binary()
     end
     # :^ - represents parameter ix is index number 
-    defp expr({:^, [], [ix]}, _sources, _query) do
-      "@#{ix+1}"
+    defp expr({:^, [], [idx]}, _sources, _query) do
+      "@#{idx + 1}"
     end
     # :. - attribure, table alias name can be get from sources by passing index 
     defp expr({{:., _, [{:&, _, [idx]}, field]}, _, []}, sources, _query) when is_atom(field) do
@@ -484,7 +484,7 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp expr({:&, _, [idx, fields, _counter]}, sources, query) do
-      {table, name, schema} = elem(sources, idx)
+      {_table, name, schema} = elem(sources, idx)
       if is_nil(schema) and is_nil(fields) do
         error!(query, "TDS adapter requires a schema module when using selector #{inspect name} but " <>
                       "none was given. Please specify schema " <>
@@ -499,14 +499,18 @@ if Code.ensure_loaded?(Tds) do
       "0=1"
     end
 
+    # example from(p in Post, where: p.id in [1,2, ^some_id])
     defp expr({:in, _, [left, right]}, sources, query) when is_list(right) do
       args = Enum.map_join right, ",", &expr(&1, sources, query)
       expr(left, sources, query) <> " IN (" <> args <> ")"
     end
-
+    
+    # example from(p in Post, where: p.id in [])
     defp expr({:in, _, [_left, {:^, [], [0, 0]}]}, _sources, _query), do: "0=1"
-    defp expr({:in, _, [left, {:^, _, [ix, length]}]}, sources, query) do
-      args = Enum.map_join ix+1..ix+length, ",", &"@#{&1}"
+    # example from(p in Post, where: p.id in ^some_list)
+    # or from(p in Post, where: p.id in ^[])
+    defp expr({:in, _, [left, {:^, _, [idx, length]}]}, sources, query) do
+      args = list_param_to_args(idx, length)
       expr(left, sources, query) <> " IN (" <> args <> ")"
     end
 
@@ -1064,6 +1068,10 @@ if Code.ensure_loaded?(Tds) do
     def uuid(<<v1::32, v2::16, v3::16, v4::64>>) do
       <<v1::little-signed-32, v2::little-signed-16, v3::little-signed-16, v4::signed-64>>
     end
-      
+
+    defp list_param_to_args(idx, length) do       
+       Enum.map_join(1..length, ",", &"@#{idx+&1}")
     end
+      
+  end
 end
