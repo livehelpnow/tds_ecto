@@ -2,7 +2,7 @@
 
 MSSQL / TDS Adapter for Ecto2
 
-[![Build status](https://ci.appveyor.com/api/projects/status/l0td3g3vv8rl75x7?svg=true)](https://ci.appveyor.com/project/mjaric/tds-ecto)
+[![Build status](https://ci.appveyor.com/api/projects/status/l0td3g3vv8rl75x7?svg=true)](https://ci.appveyor.com/project/mjaric/tds-ecto-jpd3h)
 
 This branch is an alpha version that currently aims to support Ecto 2.0. Please check the issues tagged ecto2 for a more complete overview. This branch should not yet be considered stable or used in production.
 
