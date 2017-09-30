@@ -1,6 +1,6 @@
-# Tds.Ecto
+# Tds.Ecto (Ecto v2)
 
-MSSQL / TDS Adapter for Ecto
+MSSQL / TDS Adapter for Ecto2
 
 [![Build status](https://ci.appveyor.com/api/projects/status/l0td3g3vv8rl75x7?svg=true)](https://ci.appveyor.com/project/mjaric/tds-ecto)
 
@@ -69,7 +69,7 @@ Add Tds as a dependency in your `mix.exs` file.
 
 ```elixir
 def deps do
-  [{:tds_ecto, github: "livehelpnow/tds_ecto", tag: "2.0.0-alpha.3"}]
+  [{:tds_ecto, github: "livehelpnow/tds_ecto", tag: "2.0.0"}]
 end
 ```
 
