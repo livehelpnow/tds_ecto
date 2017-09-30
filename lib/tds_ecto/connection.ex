@@ -488,7 +488,7 @@ if Code.ensure_loaded?(Tds) do
       if is_nil(schema) and is_nil(fields) do
         error!(query, "TDS adapter requires a schema module when using selector #{inspect name} but " <>
                       "none was given. Please specify schema " <>
-                      "or specify exactly which fields from #{inspect name} you desire")
+                      "or specify exactly which fields from #{inspect name} you what in projection")
       end
 
       Enum.map_join(fields, ", ", &"#{name}.#{quote_name(&1)}")

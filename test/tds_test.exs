@@ -2,12 +2,28 @@ Code.require_file "../deps/ecto/integration_test/support/types.exs", __DIR__
 
 defmodule Tds.Ecto.TdsTest do
   use ExUnit.Case, async: true
+  use Ecto.Migration
 
   import Ecto.Query
 
   alias Ecto.Queryable
+  alias Ecto.Integration.TestRepo
+  alias Ecto.Migration.Runner
   alias Tds.Ecto.Connection, as: SQL
-  
+
+  setup meta do
+    config = Application.get_env(:ecto, TestRepo, [])
+    Application.put_env(:ecto, TestRepo, Keyword.merge(config, meta[:repo_config] || []))
+    on_exit fn -> Application.put_env(:ecto, TestRepo, config) end
+  end
+
+  setup meta do
+    direction = meta[:direction] || :forward
+    {:ok, runner} = Runner.start_link(self(), TestRepo, direction, :up, %{level: false, sql: false})
+    Runner.metadata(runner, meta)
+    {:ok, runner: runner}
+  end
+
   defmodule Model do
     use Ecto.Schema
 
@@ -81,8 +97,12 @@ defmodule Tds.Ecto.TdsTest do
     query = "model" |> select([r], r.x) |> normalize
     assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0}
     
+    # todo: somthing is changed into ecto causing this exception to be missed.
+    # instead query is built as "SELECT &(0) FROM [posts] AS p0" which won't work
     assert_raise Ecto.QueryError, ~r"TDS adapter requires a schema", fn ->
-      SQL.all from(p in "posts", select: p) |> normalize()
+      query = from(p in "posts", select: [p]) |> normalize()
+      |> IO.inspect()
+      SQL.all(query)
     end
   end
 
@@ -560,7 +580,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories), []} ]}
     assert SQL.execute_ddl(create) == [ 
-      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] INT, ",
+      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] BIGINT, ",
       "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]), CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))" 
       ] |> IO.iodata_to_binary
@@ -584,7 +604,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories, name: :foo_bar), []} ]}
     assert SQL.execute_ddl(create) == [
-      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] INT, ",
+      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] BIGINT, ",
       "CONSTRAINT [foo_bar] FOREIGN KEY ([category_id]) REFERENCES [categories]([id]), ",
       "CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"
     ] |> IO.iodata_to_binary
@@ -595,7 +615,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :bigserial, [primary_key: true]},
                 {:add, :category_id, references(:categories, on_delete: :nothing), []} ]}
     assert SQL.execute_ddl(create) == [
-      "CREATE TABLE [posts] ([id] bigint IDENTITY(1,1), [category_id] INT, ",
+      "CREATE TABLE [posts] ([id] bigint IDENTITY(1,1), [category_id] BIGINT, ",
       "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]), CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"
     ] |> IO.iodata_to_binary
@@ -606,7 +626,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories, on_delete: :nilify_all), []} ]}
     assert SQL.execute_ddl(create) == [
-      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] INT, ",
+      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] BIGINT, ",
       "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]) ON DELETE SET NULL, ",
       "CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"] |> IO.iodata_to_binary
@@ -617,7 +637,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories, on_delete: :delete_all), []} ]}
     assert SQL.execute_ddl(create) == [
-      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] INT, ",
+      "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] BIGINT, ",
       "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]) ON DELETE CASCADE, ",
       "CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"
@@ -677,14 +697,14 @@ defmodule Tds.Ecto.TdsTest do
 
     expected_ddl = [
       "ALTER TABLE [foo].[posts] ADD [title] nvarchar(100) NOT NULL CONSTRAINT [DF_foo_posts_title] DEFAULT (N'Untitled'); ",
-      "ALTER TABLE [foo].[posts] ADD [author_id] INT; ",
+      "ALTER TABLE [foo].[posts] ADD [author_id] BIGINT; ",
       "ALTER TABLE [foo].[posts] ADD CONSTRAINT [FK_foo_posts_author_id] FOREIGN KEY ([author_id]) REFERENCES [foo].[author]([id]); ",
       "ALTER TABLE [foo].[posts] ALTER COLUMN [price] numeric(8,2) NULL; ",
       "IF (OBJECT_ID(N'[DF_foo_posts_cost]', 'DF') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [DF_foo_posts_cost];  END; ",
       "ALTER TABLE [foo].[posts] ALTER COLUMN [cost] integer NULL; ",
       "ALTER TABLE [foo].[posts] ADD CONSTRAINT [DF_foo_posts_cost] DEFAULT (NULL) FOR [cost]; ",
       "IF (OBJECT_ID(N'[FK_foo_posts_permalink_id]', 'F') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [FK_foo_posts_permalink_id];  END; ",
-      "ALTER TABLE [foo].[posts] ALTER COLUMN [permalink_id] INT NOT NULL; ",
+      "ALTER TABLE [foo].[posts] ALTER COLUMN [permalink_id] BIGINT NOT NULL; ",
       "ALTER TABLE [foo].[posts] ADD CONSTRAINT [FK_foo_posts_permalink_id] FOREIGN KEY ([permalink_id]) REFERENCES [foo].[permalinks]([id]); ",
       "ALTER TABLE [foo].[posts] DROP COLUMN [summary]; "
     ] |> IO.iodata_to_binary
@@ -697,7 +717,7 @@ defmodule Tds.Ecto.TdsTest do
                [{:add, :comment_id, references(:comments), []}]}
 
     assert SQL.execute_ddl(alter) == [
-      "ALTER TABLE [posts] ADD [comment_id] INT; ",
+      "ALTER TABLE [posts] ADD [comment_id] BIGINT; ",
       "ALTER TABLE [posts] ADD CONSTRAINT [FK__posts_comment_id] FOREIGN KEY ([comment_id]) REFERENCES [comments]([id]); "]
       |> IO.iodata_to_binary
 
