@@ -79,15 +79,24 @@ if Code.ensure_loaded?(Tds) do
     end
 
     
-    defp prepare_param(%Ecto.Query.Tagged{value: true, type: :boolean}),                                 do: {1, :boolean}
-    defp prepare_param(%Ecto.Query.Tagged{value: false, type: :boolean}),                                do: {0, :boolean}
-    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :string})                                  do 
-      case :unicode.characters_to_binary(value, :utf8, {:utf16, :little}) do
-        {:error, _, _} -> {value, :binary}
-        val -> {val, :string}
-      end
-    end
-    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}) when value == "",                do: {value, :string}
+    # BOOLEAN
+    defp prepare_param(%Ecto.Query.Tagged{value: true, type: :boolean}),  do: {1, :boolean}
+    defp prepare_param(%Ecto.Query.Tagged{value: false, type: :boolean}), do: {0, :boolean}
+    # STRING parameter
+    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :string}),  do: {value, :string} 
+    # Tds should handle string enociding
+    # defp prepare_param(%Ecto.Query.Tagged{value: value, type: :string}) do 
+    #   with utf16 <- when is_bitstring(utf16) 
+    #     :unicode.characters_to_binary(value, :utf8, {:utf16, :little}) 
+    #   do
+    #     utf16
+    #   else
+    #     _ -> raise Tds.Error, "faild to ucs2 encode value #{inspect(value)}"
+    #   end
+    # end
+    # below should be handled by Tds connection
+    # defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}) 
+    #   when value == "", do: {value, :string}
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}),                                 do: {value, :binary}
     defp prepare_param(%Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,us}}, type: :datetime}) when us > 0, do: {{{y,m,d},{hh,mm,ss, us}}, :datetime2}
     defp prepare_param(%Ecto.Query.Tagged{value: {{y,m,d},{hh,mm,ss,_}}, type: :datetime}),              do: {{{y,m,d},{hh,mm,ss}}, :datetime}
@@ -101,21 +110,34 @@ if Code.ensure_loaded?(Tds) do
       end
     end
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: type}) when type in [:binary_id, :uuid],     do: {value, type}
-    defp prepare_param(%{__struct__: _} = value),                                                          do: {value, nil}
-    defp prepare_param(%{} = value),                                                                       do: {json_library().encode!(value), :string}
-    defp prepare_param(value),                                                                             do: param(value)
-
-    defp param(value) when is_binary(value) do
-      case :unicode.characters_to_binary(value, :utf8, {:utf16, :little}) do
-        {:error, _, _} -> {value, :binary}
-        val -> {val, nil}
+    defp prepare_param(%Ecto.Query.Tagged{value: value, type: nil})  when is_binary(value) do
+      if String.valid?(value) do
+        {value, :string}
+      else
+        {value, :binary}
       end
     end
+    defp prepare_param(%{__struct__: _} = value),                                                          do: raise Tds.Error, "Tds is unable to conver struct into supported MSSQL types"
+    defp prepare_param(%{} = value),                                                                       do: {json_library().encode!(value), :string}
+    defp prepare_param(value),                                                                             do: prepare_raw_param(value)
 
-    defp param({_,_,_} = value), do: {value, :date}
-    defp param(value) when value == true, do: {1, :boolean}
-    defp param(value) when value == false, do: {0, :boolean}
-    defp param(value), do: {value, nil}
+    defp prepare_raw_param(value) when is_binary(value) do
+      # case :unicode.characters_to_binary(value, :utf8, {:utf16, :little}) do
+      #   {:error, _, _} -> {value, :binary}
+      #   val -> {val, nil}
+      # end
+      type = if String.valid?(value), do: :string, else: :binary
+      {value, type}
+    end
+
+    defp prepare_raw_param({y,m,d} = value) 
+         when is_integer(y) and is_integer(m) and is_integer(d),            do: {value, :date}
+    defp prepare_raw_param(value) when value == true,                       do: {1, :boolean}
+    defp prepare_raw_param(value) when value == false,                      do: {0, :boolean}
+    defp prepare_raw_param(value) when is_integer(value),                   do: {value, :integer}
+    defp prepare_raw_param(value) when is_number(value),                    do: {value, :float}
+    defp prepare_raw_param(%Decimal{}=value),                               do: {Decimal.new(value), :decimal}
+    defp prepare_raw_param(value),                                          do: {value, nil}
 
     defp json_library do
       Application.get_env(:ecto, :json_library)
