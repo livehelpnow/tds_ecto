@@ -25,7 +25,7 @@ defmodule TDS.Ecto.Mixfile do
     [
       {:ecto, ">= 2.0.0"},
       # {:tds, path: "../tds"},
-      {:tds, github: "livehelpnow/tds"},
+      {:tds, github: "livehelpnow/tds", tag: "v1.0.2"},
       {:poison, ">= 0.0.0", only: :test}
     ]
   end

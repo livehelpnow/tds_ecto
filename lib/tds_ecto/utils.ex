@@ -5,40 +5,46 @@ defmodule Tds.Ecto.Utils do
   defmacro if_object_exists(condition, name, type, do: statement) do
     quote do
       if (unquote(condition)) do
-        ["IF (OBJECT_ID(N'", unquote(name),"', '", unquote(type) ,"') IS NOT NULL) BEGIN ",
+        [
+          "IF (OBJECT_ID(N'#{unquote(name)}', '#{unquote(type)}') IS NOT NULL) BEGIN ",
           unquote(statement),
-          " END; "]
+          " END; "
+        ]
       else
         []
-      end   
+      end
     end
   end
 
   defmacro if_index_exists(condition, index_name, table_name) do
     quote do
       if(unquote(condition)) do
-        ["IF EXISTS (SELECT name FROM sys.indexes WHERE name = N'", 
-         Tds.Ecto.Utils.as_string(unquote(index_name)), 
-         "' AND object_id = OBJECT_ID(N'",
-         Tds.Ecto.Utils.as_string(unquote(table_name)), 
-         "')) "]
+        [
+          "IF EXISTS (SELECT name FROM sys.indexes WHERE name = N'",
+          Tds.Ecto.Utils.as_string(unquote(index_name)),
+          "' AND object_id = OBJECT_ID(N'",
+          Tds.Ecto.Utils.as_string(unquote(table_name)),
+          "')) "
+        ]
       else
         []
-      end  
+      end
     end
   end
 
   defmacro if_index_not_exists(condition, index_name, table_name) do
     quote do
       if(unquote(condition)) do
-        ["IF NOT EXISTS (SELECT name FROM sys.indexes WHERE name = N'", 
-         Tds.Ecto.Utils.as_string(unquote(index_name)), 
-         "' AND object_id = OBJECT_ID(N'",
-         Tds.Ecto.Utils.as_string(unquote(table_name)), 
-         "')) "]
+        [
+          "IF NOT EXISTS (SELECT name FROM sys.indexes WHERE name = N'",
+          Tds.Ecto.Utils.as_string(unquote(index_name)),
+          "' AND object_id = OBJECT_ID(N'",
+          Tds.Ecto.Utils.as_string(unquote(table_name)),
+          "')) "
+        ]
       else
         []
-      end  
+      end
     end
   end
 
