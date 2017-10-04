@@ -99,9 +99,10 @@ defmodule Tds.Ecto.TdsTest do
     
     # todo: somthing is changed into ecto causing this exception to be missed.
     # instead query is built as "SELECT &(0) FROM [posts] AS p0" which won't work
-    assert_raise Ecto.QueryError, ~r"TDS adapter requires a schema", fn ->
+    assert_raise Ecto.QueryError, ~r"TDS Adapter does not support selecting all fields from", fn ->
       query = from(p in "posts", select: [p]) |> normalize()
       SQL.all(query)
+      |> IO.inspect()
     end
   end
 

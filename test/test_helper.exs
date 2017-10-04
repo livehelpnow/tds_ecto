@@ -76,7 +76,7 @@ end
 
 # :dbg.tracer()
 # :dbg.p(:all,:c)
-# :dbg.tpl(Tds.Protocol, :_, :x)
+# :dbg.tpl(Tds.Ecto.Connection, :expr, :x)
 
 :erlang.system_flag :backtrace_depth, 50
 

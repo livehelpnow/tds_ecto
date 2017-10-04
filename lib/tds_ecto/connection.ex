@@ -609,18 +609,28 @@ if Code.ensure_loaded?(Tds) do
       [?(, expr(expr, sources, query), ?)]
       |> IO.iodata_to_binary()
     end
+
     # :^ - represents parameter ix is index number 
     defp expr({:^, [], [idx]}, _sources, _query) do
       "@#{idx + 1}"
     end
+    
     # :. - attribure, table alias name can be get from sources by passing index 
     defp expr({{:., _, [{:&, _, [idx]}, field]}, _, []}, sources, _query) when is_atom(field) do
       {_, name, _} = elem(sources, idx)
       "#{name}.#{quote_name(field)}"
     end
-
+    
+    defp expr({:&, _, [idx]}, sources, query) do
+      {table, _name, _schema} = elem(sources, idx)      
+      error!(query, "TDS Adapter does not support selecting all fields from #{table} without a schema. " <>
+                    "Please specify a schema or specify exactly which fields you want in projection")
+    end
+    
     defp expr({:&, _, [idx, fields, _counter]}, sources, query) do
       {_table, name, schema} = elem(sources, idx)
+      |> IO.inspect()
+
       if is_nil(schema) and is_nil(fields) do
         error!(
           query,
