@@ -24,21 +24,23 @@ defmodule TDS.Ecto.Mixfile do
   defp deps() do
     [
       {:ecto, ">= 2.0.0"},
-      # {:tds, path: "../tds"},
-      {:tds, github: "livehelpnow/tds", tag: "v1.0.2"},
+      {:tds, "~> 1.0.2"},
+      {:ex_doc, ">= 0.0.0", only: :dev},
       {:poison, ">= 0.0.0", only: :test}
     ]
   end
 
   defp description() do
     """
-    MSSQL / TDS Adapter v#{@version} for Ecto.
+    Ecto 2 Adapter for Microsoft SQL Server
     """
   end
 
   defp package do
-    [maintainers: ["Justin Schneck"],
-     licenses: ["Apache 2.0"],
-     links: %{"Github" => "https://github.com/livehelpnow/tds_ecto"}]
+    [ name: "tds_ecto",
+      files: ["lib", "mix.exs", "README*"],
+      maintainers: ["Justin Schneck", "Eric Witchin", "Milan Jaric"],
+      licenses: ["Apache 2.0"],
+      links: %{"Github" => "https://github.com/livehelpnow/tds_ecto"}]
   end
 end

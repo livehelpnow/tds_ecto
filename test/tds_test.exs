@@ -101,7 +101,6 @@ defmodule Tds.Ecto.TdsTest do
     # instead query is built as "SELECT &(0) FROM [posts] AS p0" which won't work
     assert_raise Ecto.QueryError, ~r"TDS adapter requires a schema", fn ->
       query = from(p in "posts", select: [p]) |> normalize()
-      |> IO.inspect()
       SQL.all(query)
     end
   end

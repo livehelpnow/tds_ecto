@@ -6,3 +6,4 @@ debug.log
 erl_crash.dump
 *.ez
 .vscode/  
+/doc
