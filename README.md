@@ -2,9 +2,12 @@
 
 MSSQL / TDS Adapter for Ecto2
 
-[![Build status](https://ci.appveyor.com/api/projects/status/g59ocaellinuig7g?svg=true)](https://ci.appveyor.com/project/mjaric/tds-ecto-jpd3h)
+[![Build Status][appveyor-img]][appveyor] [![Hex Version][hex-img]][hex]
 
-This branch is an alpha version that currently aims to support Ecto 2.0. Please check the issues tagged ecto2 for a more complete overview. This branch should not yet be considered stable or used in production.
+[appveyor-img]: https://ci.appveyor.com/api/projects/status/g59ocaellinuig7g?svg=true
+[appveyor]: https://ci.appveyor.com/project/mjaric/tds-ecto-jpd3h
+[hex-img]: https://img.shields.io/hexpm/v/tds_ecto.svg
+[hex]: https://hex.pm/packages/tds_ecto
 
 ## Example
 ```elixir
