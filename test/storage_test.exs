@@ -35,7 +35,7 @@ defmodule Tds.Ecto.StorageTest do
     args = [
       "-U", params[:username], 
       "-P", params[:password],
-      "-H", params[:hostname],
+      "-S", params[:hostname],
       "-Q", ~s(#{sql}) | args]
     # IO.puts(Enum.map_join(args, " ", &"#{&1}"))
     System.cmd "sqlcmd", args
