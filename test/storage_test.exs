@@ -6,7 +6,7 @@ defmodule Tds.Ecto.StorageTest do
   def params do
     [ database: "storage_mgt",
       pool: Ecto.Adapters.SQL.Sandbox,
-      hostname: System.get_env("SQL_HOSTNAME") || "localhost",
+      hostname: System.get_env("SQL_HOSTNAME") || "127.0.0.1",
       username: System.get_env("SQL_USERNAME") || "sa",
       password: System.get_env("SQL_PASSWORD") || "some!Password",]
   end
@@ -59,9 +59,9 @@ defmodule Tds.Ecto.StorageTest do
   end
   
   test "storage up and down (wrong credentials)" do
-    refute Tds.Ecto.storage_up(wrong_params()) == :ok
+    refute :ok == Tds.Ecto.storage_up(wrong_params())
     {_, 0} = create_database(params())
-    refute Tds.Ecto.storage_down(wrong_params()) == :ok
+    refute :ok == Tds.Ecto.storage_down(wrong_params())
     {_, 0} = drop_database(params())
   end
 end
