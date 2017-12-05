@@ -99,7 +99,7 @@ if Code.ensure_loaded?(Tds) do
         {:ok, value} = Ecto.UUID.cast(value)
         {value, :string}
       else
-        {uuid(value), :binary}
+        {value, :uuid}
       end
     end
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: type})

@@ -62,7 +62,7 @@ defmodule Tds.Ecto do
   def loaders(:map, type),                  do: [&json_decode/1, type]
   def loaders({:map, _}, type),             do: [&json_decode/1, type]
   def loaders(:boolean, type),              do: [&bool_decode/1, type]
-  def loaders(:binary_id, type),            do: [Ecto.UUID, type]
+  def loaders(:binary_id, type),            do: [&uuid_decode/1, type]
   def loaders({:embed, _} = type, _),       do: [&json_decode/1, &Ecto.Adapters.SQL.load_embed(type, &1)]
   # def loaders({:embed, _} = type, binary) when is_binary(binary), do: [type, json_library.decode!(binary)]
   def loaders(_, type),                     do: [type]
@@ -71,6 +71,10 @@ defmodule Tds.Ecto do
   # def loaders(:boolean, 0),                                       do: [{:ok, false}]
   # def loaders(:boolean, 1),                                       do: [{:ok, true}]
   # def loaders(type, value),                                       do: [type, value]
+
+  def dumpers({:embed, _} = type, _), do: [&Ecto.Adapters.SQL.dump_embed(type, &1)]
+  def dumpers(:binary_id, type),      do: [type, &uuid_encode/1]
+  def dumpers(_, type),               do: [type]
 
   defp bool_decode(<<0>>),  do: {:ok, false}
   defp bool_decode(<<1>>),  do: {:ok, true}
@@ -82,6 +86,17 @@ defmodule Tds.Ecto do
   defp json_decode(x),                    do: {:ok, x}
 
   defp json_library(), do: Application.get_env(:ecto, :json_library)
+
+  defp uuid_encode(value) do
+    case Ecto.UUID.dump(value) do
+      {:ok, value} -> {:ok, Tds.Types.encode_uuid(value)}
+      any          -> any
+    end
+  end
+
+  defp uuid_decode(value) do
+    Ecto.UUID.load(value)
+  end
 
   # Storage API
   @doc false
