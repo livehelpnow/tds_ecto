@@ -108,8 +108,13 @@ if Code.ensure_loaded?(Tds) do
       type = if String.valid?(value), do: :string, else: :binary
       {value, type}
     end
-    defp prepare_param(%{__struct__: _} = _value),
-         do: raise Tds.Error, "Tds is unable to conver struct into supported MSSQL types"
+    defp prepare_param(%Decimal{}=value) do
+      {value, :decimal}
+    end
+    defp prepare_param(%{__struct__: module} = value) do
+      # just in case dumpers/loaders are not defined for the this struct
+      raise Tds.Error, "Tds is unable to convert struct #{inspect{module}} into supported MsSql types"
+    end
     defp prepare_param(%{} = value), do: {json_library().encode!(value), :string}
     defp prepare_param(value), do: prepare_raw_param(value)
 

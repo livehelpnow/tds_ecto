@@ -1,3 +1,6 @@
+# v2.0.7
+* fixing issue when inserting data with decimal columns see issue #57
+
 # v2.0.3 (v2.0.2)
 * Fixing failed test when schemaless query is executed without specified columns in projection
 

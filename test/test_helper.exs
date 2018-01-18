@@ -45,7 +45,7 @@ Application.put_env(:ecto, PoolRepo,
   hostname: System.get_env("SQL_HOSTNAME") || "localhost",
   username: System.get_env("SQL_USERNAME") || "sa",
   password: System.get_env("SQL_PASSWORD") || "some!Password",
-  database: "ecto_test",
+  database: "ecto_test_pool",
   pool_size: 10)
 
 defmodule Ecto.Integration.PoolRepo do
@@ -67,6 +67,7 @@ defmodule Ecto.Integration.Case do
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(TestRepo)
+    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.checkin(TestRepo) end)
   end
 end
 
@@ -81,9 +82,13 @@ end
 :erlang.system_flag :backtrace_depth, 50
 
 {:ok, _} = Tds.Ecto.ensure_all_started(TestRepo, :temporary)
+{:ok, _} = Tds.Ecto.ensure_all_started(PoolRepo, :temporary)
 
 _   = Tds.Ecto.storage_down(TestRepo.config)
 :ok = Tds.Ecto.storage_up(TestRepo.config)
+
+_ = Tds.Ecto.storage_down(PoolRepo.config)
+:ok = Tds.Ecto.storage_up(PoolRepo.config)
 
 {:ok, _pid} = TestRepo.start_link
 {:ok, _pid} = PoolRepo.start_link
