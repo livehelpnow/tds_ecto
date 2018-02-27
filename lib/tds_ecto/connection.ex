@@ -770,6 +770,11 @@ if Code.ensure_loaded?(Tds) do
       Enum.map_join(list, ", ", &expr(&1, sources, query))
     end
 
+    defp expr({string, :varchar}, _sources, _query)
+    when is_binary(string) do
+      "'#{escape_string(string)}'"
+    end
+
     defp expr(string, _sources, _query) when is_binary(string) do
       if String.contains?(string, @unsafe_query_strings) do
         len = String.length(string)
@@ -778,7 +783,7 @@ if Code.ensure_loaded?(Tds) do
               |> Base.encode16(case: :lower)
         "CONVERT(nvarchar(#{len}), 0x#{hex})"
       else
-        "'#{escape_string(string)}'"
+        "N'#{escape_string(string)}'"
       end
     end
 

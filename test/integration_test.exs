@@ -43,6 +43,10 @@ defmodule Tds.EctoTest.IntegrationTest do
     assert [%{id: 1}=_] = Models.Item
                     |> where([i], i.title_bin == ^title_bin)
                     |> Repo.all()
+
+    assert [%{id: 1}=_] = Models.Item
+                  |> where([i], i.title_bin == "VARCHAR")
+                  |> Repo.all()
     
   end
 end

@@ -200,7 +200,7 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.all(query) == ~s{SELECT CONVERT(nvarchar(4), 0x27005c0020002000) FROM [model] AS m0}
 
     query = Model |> select([], "'") |> normalize
-    assert SQL.all(query) == ~s{SELECT '''' FROM [model] AS m0}
+    assert SQL.all(query) == ~s{SELECT N'''' FROM [model] AS m0}
   end
 
   test "binary ops" do
@@ -258,7 +258,7 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.all(query) == ~s{SELECT 0 FROM [model] AS m0}
 
     query = Model |> select([], "abc") |> normalize
-    assert SQL.all(query) == ~s{SELECT 'abc' FROM [model] AS m0}
+    assert SQL.all(query) == ~s{SELECT N'abc' FROM [model] AS m0}
 
     query = Model |> select([], 123) |> normalize
     assert SQL.all(query) == ~s{SELECT 123 FROM [model] AS m0}
