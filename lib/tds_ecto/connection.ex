@@ -2,14 +2,16 @@ if Code.ensure_loaded?(Tds) do
   defmodule Tds.Ecto.Connection do
     @moduledoc false
     require Logger
+    require Tds.Ecto.Utils
+    alias   Tds.Ecto.Utils
+    alias   Tds.Query
+    require Ecto.Schema
     @default_port System.get_env("MSSQLPORT") || 1433
 
     @behaviour Ecto.Adapters.SQL.Connection
     # @behaviour Ecto.Adapters.SQL.Query
 
     @unsafe_query_strings ["'\\"]
-    require Tds.Ecto.Utils
-    alias Tds.Ecto.Utils
 
     def connect(opts) do
       opts = opts
@@ -20,8 +22,7 @@ if Code.ensure_loaded?(Tds) do
     def child_spec(opts) do
       Tds.child_spec(opts)
     end
-    require Ecto.Schema
-    alias Tds.Query
+    
     #alias Tds.Parameter
 
     def prepare_execute(pid, _name, statement, params, opts \\ []) do
@@ -81,19 +82,36 @@ if Code.ensure_loaded?(Tds) do
 
 
     # Boolean
-    defp prepare_param(%Ecto.Query.Tagged{value: true, type: :boolean}), do: {1, :boolean}
-    defp prepare_param(%Ecto.Query.Tagged{value: false, type: :boolean}), do: {0, :boolean}
+    defp prepare_param(%Ecto.Query.Tagged{value: true, type: :boolean}),
+      do: {1, :boolean}
+    defp prepare_param(%Ecto.Query.Tagged{value: false, type: :boolean}),
+      do: {0, :boolean}
     # String parameter
-    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :string}), do: {value, :string}
+    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :string}),
+      do: {value, :string}
     # Binary
-    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}), do: {value, :binary}
+    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}),
+      do: {value, :binary}
     # DateTime
-    defp prepare_param(%Ecto.Query.Tagged{value: {{y, m, d}, {hh, mm, ss, us}}, type: :datetime}) when us > 0,
-         do: {{{y, m, d}, {hh, mm, ss, us}}, :datetime2}
-    defp prepare_param(%Ecto.Query.Tagged{value: {{y, m, d}, {hh, mm, ss, _}}, type: :datetime}),
-         do: {{{y, m, d}, {hh, mm, ss}}, :datetime}
+    defp prepare_param(
+          %Ecto.Query.Tagged{
+            value: {{y, m, d}, {hh, mm, ss, us}},
+            type: :datetime
+          }
+      ) when us > 0,
+      do: {{{y, m, d}, {hh, mm, ss, us}}, :datetime2}
+    defp prepare_param(
+        %Ecto.Query.Tagged{
+          value: {{y, m, d}, {hh, mm, ss, _}},
+          type: :datetime
+        }
+      ),
+      do: {{{y, m, d}, {hh, mm, ss}}, :datetime}
     # UUID and BinaryID
-    defp prepare_param(%Ecto.Query.Tagged{value: nil, type: type}) when type in [:binary_id, :uuid], do: {nil, :binary}
+    defp prepare_param(
+        %Ecto.Query.Tagged{value: nil, type: type}
+      ) when type in [:binary_id, :uuid],
+      do: {nil, :binary}
     defp prepare_param(%Ecto.Query.Tagged{value: value, type: type}) when type in [:binary_id, :uuid]    do
       if String.length(value) > 16 do
         {:ok, value} = Ecto.UUID.cast(value)
@@ -111,7 +129,7 @@ if Code.ensure_loaded?(Tds) do
     defp prepare_param(%Decimal{}=value) do
       {value, :decimal}
     end
-    defp prepare_param(%{__struct__: module} = value) do
+    defp prepare_param(%{__struct__: module} = _value) do
       # just in case dumpers/loaders are not defined for the this struct
       raise Tds.Error, "Tds is unable to convert struct #{inspect{module}} into supported MsSql types"
     end
@@ -432,7 +450,7 @@ if Code.ensure_loaded?(Tds) do
     defp from(%{from: from} = query, sources) do
       {from, name} = get_source(query, sources, 0, from)
       "FROM #{from} AS #{name}" <> lock(query.lock)
-      |> String.strip
+      |> String.trim()
     end
 
     defp update_fields(%Query{updates: updates} = query, sources) do
@@ -539,15 +557,17 @@ if Code.ensure_loaded?(Tds) do
 
     defp limit(%Query{limit: nil}, _sources), do: ""
     defp limit(
-           %Query{
-             limit: %QueryExpr{
-               expr: expr
-             }
-           } = query,
-           sources
-         ) do
+        %Query{
+          limit: %QueryExpr{
+            expr: expr
+          }
+        } = query,
+        sources
+      ) do
       case Map.get(query, :offset) do
-        nil -> " TOP(" <> expr(expr, sources, query) <> ")"
+        nil -> 
+          [" TOP(", expr(expr, sources, query), ")"]
+          |> IO.iodata_to_binary()
         _ -> ""
       end
 
@@ -555,22 +575,25 @@ if Code.ensure_loaded?(Tds) do
 
     defp offset(%Query{offset: nil}, _sources), do: nil
     defp offset(
-           %Query{
-             offset: %QueryExpr{
-               expr: offset_expr
-             },
-             limit: %QueryExpr{
-               expr: limit_expr
-             }
-           } = query,
-           sources
-         ) do
-      "OFFSET " <> expr(offset_expr, sources, query) <> " ROW " <>
-                                                        "FETCH NEXT " <> expr(
-                                                                           limit_expr,
-                                                                           sources,
-                                                                           query
-                                                                         ) <> " ROWS ONLY"
+        %Query{
+          offset: %QueryExpr{
+            expr: offset_expr
+          },
+          limit: %QueryExpr{
+            expr: limit_expr
+          }
+        } = query,
+        sources
+      ) do
+      [
+        "OFFSET ",
+        expr(offset_expr, sources, query),
+        " ROW ",
+        "FETCH NEXT ",
+        expr(limit_expr, sources, query),
+        " ROWS ONLY"
+      ]
+      |> IO.iodata_to_binary()
     end
     defp offset(%Query{offset: _} = query, _sources) do
       error!(query, "You must provide a limit while using an offset")
@@ -1147,16 +1170,20 @@ if Code.ensure_loaded?(Tds) do
          do: [" ", to_string(options)]
 
     defp column_type(type, opts) do
-      size = Keyword.get(opts, :size)
+      size      = Keyword.get(opts, :size)
       precision = Keyword.get(opts, :precision)
-      scale = Keyword.get(opts, :scale)
+      scale     = Keyword.get(opts, :scale)
       type_name = ecto_to_db(type)
 
       cond do
-        size -> [type_name, "(", to_string(size), ")"]
-        precision -> [type_name, "(", to_string(precision), ",", to_string(scale || 0), ")"]
-        type == :string -> [type_name, "(255)"]
-        true -> type_name
+        size ->
+          [type_name, "(", to_string(size), ")"]
+        precision ->
+          [type_name, "(", to_string(precision), ",", to_string(scale || 0), ")"]
+        type == :string ->
+          [type_name, "(255)"]
+        true ->
+          type_name
       end
     end
 
@@ -1282,7 +1309,9 @@ if Code.ensure_loaded?(Tds) do
     defp ecto_to_db(:map, _query), do: "nvarchar(max)"
     defp ecto_to_db({:map, :string}, _query), do: "nvarchar(max)"
     defp ecto_to_db(:utc_datetime, _query), do: "datetime2"
+    defp ecto_to_db(:utc_datetime_usec, _query), do: "datetime2"
     defp ecto_to_db(:naive_datetime, _query), do: "datetime"
+    defp ecto_to_db(:naive_datetime_usec, _query), do: "datetime2"
     defp ecto_to_db(other, _query), do: Atom.to_string(other)
 
     defp assemble(list) do

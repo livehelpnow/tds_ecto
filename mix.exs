@@ -1,7 +1,7 @@
 defmodule TDS.Ecto.Mixfile do
   use Mix.Project
 
-  @version "2.0.7"
+  @version "2.0.8"
 
   def project do
     [
