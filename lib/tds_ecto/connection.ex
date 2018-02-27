@@ -1348,7 +1348,7 @@ if Code.ensure_loaded?(Tds) do
           "SELECT * ",
           "FROM [INFORMATION_SCHEMA].[TABLES] info ",
           "WHERE info.[TABLE_NAME] = '#{name}' ",
-          "AND info.[TABLE_SCHEMA] = '#{prefix}' ",
+          "AND ('#{prefix}' = '' OR info.[TABLE_SCHEMA] = '#{prefix}') ",
           ") BEGIN "
         ]
         Enum.map_join(query_segment, "", &"#{&1}")
@@ -1364,7 +1364,7 @@ if Code.ensure_loaded?(Tds) do
           "SELECT * ",
           "FROM [INFORMATION_SCHEMA].[TABLES] info ",
           "WHERE info.[TABLE_NAME] = '#{name}' ",
-          "AND info.[TABLE_SCHEMA] = '#{prefix}' ",
+          "AND ('#{prefix}' = '' OR info.[TABLE_SCHEMA] = '#{prefix}') ",
           ") BEGIN "
         ]
         Enum.map_join(query_segment, "", &"#{&1}")
