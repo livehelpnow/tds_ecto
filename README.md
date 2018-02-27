@@ -72,7 +72,7 @@ Add Tds as a dependency in your `mix.exs` file.
 
 ```elixir
 def deps do
-  [{:tds_ecto, "~> 2.0.3"}]
+  [{:tds_ecto, "~> 2.1"}]
 end
 ```
 
@@ -105,10 +105,10 @@ For additional information on usage please see the documentation for [Ecto](http
 
 ## Data Type Mapping
 
-    MSSQL             	Ecto
+    MSSQL             	Ecto/Tds.Ecto
     ----------        	------
     nvarchar            :string
-    varchar             :binary
+    varchar             Tds.VarChar
     char                :binary
     varbinary           :binary
     float               :float

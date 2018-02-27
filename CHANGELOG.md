@@ -1,5 +1,5 @@
 #v2.1.0
-* Introducing Tds.VarChar type, in migration `:varchar` should be used as field type and in schema `Tds.VarChar` as field type.
+* Introducing Tds.VarChar type, use in migration `:varchar` as field type and in schema `Tds.VarChar` as field type.
 
 # v2.0.7
 * fixing issue when inserting data with decimal columns see issue #57
