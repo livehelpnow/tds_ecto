@@ -4,7 +4,9 @@ if Code.ensure_loaded?(Tds) do
     require Logger
     require Tds.Ecto.Utils
     alias   Tds.Ecto.Utils
+    alias   Tds.Ecto.VarChar
     alias   Tds.Query
+    alias   Ecto.Query.Tagged
     require Ecto.Schema
     @default_port System.get_env("MSSQLPORT") || 1433
 
@@ -82,26 +84,27 @@ if Code.ensure_loaded?(Tds) do
 
 
     # Boolean
-    defp prepare_param(%Ecto.Query.Tagged{value: true, type: :boolean}),
+    defp prepare_param(%Tagged{value: true, type: :boolean}),
       do: {1, :boolean}
-    defp prepare_param(%Ecto.Query.Tagged{value: false, type: :boolean}),
+    defp prepare_param(%Tagged{value: false, type: :boolean}),
       do: {0, :boolean}
+    # Tds.Ecto.VarChar
+    defp prepare_param(%Tagged{value: value, type: :varchar}) do
+      {value, :varchar}
+    end
     # String parameter
-    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :string}),
+    defp prepare_param(%Tagged{value: value, type: :string}),
       do: {value, :string}
-    # Binary
-    defp prepare_param(%Ecto.Query.Tagged{value: value, type: :binary}),
-      do: {value, :binary}
     # DateTime
     defp prepare_param(
-          %Ecto.Query.Tagged{
+          %Tagged{
             value: {{y, m, d}, {hh, mm, ss, us}},
             type: :datetime
           }
       ) when us > 0,
       do: {{{y, m, d}, {hh, mm, ss, us}}, :datetime2}
     defp prepare_param(
-        %Ecto.Query.Tagged{
+        %Tagged{
           value: {{y, m, d}, {hh, mm, ss, _}},
           type: :datetime
         }
@@ -109,10 +112,10 @@ if Code.ensure_loaded?(Tds) do
       do: {{{y, m, d}, {hh, mm, ss}}, :datetime}
     # UUID and BinaryID
     defp prepare_param(
-        %Ecto.Query.Tagged{value: nil, type: type}
+        %Tagged{value: nil, type: type}
       ) when type in [:binary_id, :uuid],
       do: {nil, :binary}
-    defp prepare_param(%Ecto.Query.Tagged{value: value, type: type}) when type in [:binary_id, :uuid]    do
+    defp prepare_param(%Tagged{value: value, type: type}) when type in [:binary_id, :uuid]    do
       if String.length(value) > 16 do
         {:ok, value} = Ecto.UUID.cast(value)
         {value, :string}
@@ -120,12 +123,22 @@ if Code.ensure_loaded?(Tds) do
         {value, :uuid}
       end
     end
-    defp prepare_param(%Ecto.Query.Tagged{value: value, type: type})
+    # Ecto.UUID
+    defp prepare_param(%Tagged{value: nil, tag: Ecto.UUID}),
+    do: {nil, :binary}
+    defp prepare_param(%Tagged{value: value, tag: Ecto.UUID}=_) do
+      {value, :binary}
+    end
+    defp prepare_param(%Tagged{value: value, type: type})
          when type in [:binary_id, :uuid], do: {value, type}
-    defp prepare_param(%Ecto.Query.Tagged{value: value, type: nil}) when is_binary(value) do
+    defp prepare_param(%Tagged{value: value, type: nil}) when is_binary(value) do
       type = if String.valid?(value), do: :string, else: :binary
       {value, type}
     end
+    # Binary
+    defp prepare_param(%Tagged{value: value, type: :binary}),
+      do: {value, :binary}
+    # Decimal
     defp prepare_param(%Decimal{}=value) do
       {value, :decimal}
     end
@@ -148,6 +161,7 @@ if Code.ensure_loaded?(Tds) do
     defp prepare_raw_param(value) when is_integer(value), do: {value, :integer}
     defp prepare_raw_param(value) when is_number(value), do: {value, :float}
     defp prepare_raw_param(%Decimal{} = value), do: {Decimal.new(value), :decimal}
+    defp prepare_raw_param({_, :varchar}=value), do: value
     defp prepare_raw_param(value), do: {value, nil}
 
     defp json_library do
@@ -773,17 +787,17 @@ if Code.ensure_loaded?(Tds) do
       Decimal.to_string(decimal, :normal)
     end
 
-    defp expr(%Ecto.Query.Tagged{value: binary, type: :binary}, _sources, _query) when is_binary(binary) do
+    defp expr(%Tagged{value: binary, type: :binary}, _sources, _query) when is_binary(binary) do
       hex = Base.encode16(binary, case: :lower)
       "0x#{hex}"
     end
 
-    defp expr(%Ecto.Query.Tagged{value: binary, type: :uuid}, _sources, _query) when is_binary(binary) do
+    defp expr(%Tagged{value: binary, type: :uuid}, _sources, _query) when is_binary(binary) do
       {:ok, binary} = if String.contains?(binary, "-"), do: Ecto.UUID.dump(binary), else: {:ok, binary}
       uuid(binary)
     end
 
-    defp expr(%Ecto.Query.Tagged{value: other, type: type}, sources, query) do
+    defp expr(%Tagged{value: other, type: type}, sources, query) do
       "CAST(#{expr(other, sources, query)} AS #{column_type(type, [])})"
     end
 

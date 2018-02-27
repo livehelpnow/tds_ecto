@@ -5,6 +5,7 @@ defmodule Tds.EctoTest.Integration.Models do
     
     schema "items" do
       field :title, :string
+      field :title_bin, Tds.VarChar, size: 400 
       field :in_stock, :integer
       field :price, :decimal
     end

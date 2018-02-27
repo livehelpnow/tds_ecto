@@ -64,16 +64,13 @@ defmodule Tds.Ecto do
   def loaders(:boolean, type),              do: [&bool_decode/1, type]
   def loaders(:binary_id, type),            do: [&uuid_decode/1, type]
   def loaders({:embed, _} = type, _),       do: [&json_decode/1, &Ecto.Adapters.SQL.load_embed(type, &1)]
+  # def loaders(:varchar, type),              do: [Tds.Varchar, type]
   # def loaders({:embed, _} = type, binary) when is_binary(binary), do: [type, json_library.decode!(binary)]
   def loaders(_, type),                     do: [type]
 
-  # def loaders(:map, binary) when is_binary(binary),               do: [:map, json_library.decode!(binary)]
-  # def loaders(:boolean, 0),                                       do: [{:ok, false}]
-  # def loaders(:boolean, 1),                                       do: [{:ok, true}]
-  # def loaders(type, value),                                       do: [type, value]
-
   def dumpers({:embed, _} = type, _), do: [&Ecto.Adapters.SQL.dump_embed(type, &1)]
   def dumpers(:binary_id, type),      do: [type, &uuid_encode/1]
+  # def dumpers(:varchar, type),        do: [type, Tds.VarChar]
   def dumpers(_, type),               do: [type]
 
   defp bool_decode(<<0>>),  do: {:ok, false}
