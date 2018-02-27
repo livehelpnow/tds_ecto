@@ -359,7 +359,7 @@ defmodule Tds.Ecto.TdsTest do
       "GROUP BY @6, @7 HAVING (@8) AND (@9) " <>
       "ORDER BY @10, m0.[x] OFFSET @12 ROW FETCH NEXT @11 ROWS ONLY"
 
-    assert SQL.all(query) == String.rstrip(result)
+    assert SQL.all(query) == String.trim_trailing(result)
   end
 
   # ## *_all

@@ -4,7 +4,6 @@ if Code.ensure_loaded?(Tds) do
     require Logger
     require Tds.Ecto.Utils
     alias   Tds.Ecto.Utils
-    alias   Tds.Ecto.VarChar
     alias   Tds.Query
     alias   Ecto.Query.Tagged
     require Ecto.Schema

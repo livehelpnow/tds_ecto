@@ -38,9 +38,9 @@ defmodule Tds.EctoTest.IntegrationTest do
       price: price
     }
 
-    assert {:ok, result} = Repo.insert(model, timeout: 30_000)
-    assert [model] = Repo.all(Models.Item)
-    assert [model] = Models.Item
+    assert {:ok, _} = Repo.insert(model, timeout: 30_000)
+    assert [%{id: 1}=_] = Repo.all(Models.Item)
+    assert [%{id: 1}=_] = Models.Item
                     |> where([i], i.title_bin == ^title_bin)
                     |> Repo.all()
     
