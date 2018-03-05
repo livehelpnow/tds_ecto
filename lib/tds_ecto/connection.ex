@@ -803,8 +803,7 @@ if Code.ensure_loaded?(Tds) do
 
     defp expr(%Tagged{value: other, type: type}, sources, query)
     when type in [:varchar, :nvarchar] do
-      len = String.length(other)
-      "CAST(#{expr(other, sources, query)} AS #{column_type(type, [])}(#{len}))"
+      "CAST(#{expr(other, sources, query)} AS #{column_type(type, [])}(max))"
     end
 
     defp expr(%Tagged{value: other, type: type}, sources, query) do
