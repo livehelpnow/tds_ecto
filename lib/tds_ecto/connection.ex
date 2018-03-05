@@ -801,6 +801,12 @@ if Code.ensure_loaded?(Tds) do
       uuid(binary)
     end
 
+    defp expr(%Tagged{value: other, type: type}, sources, query)
+    when type in [:varchar, :nvarchar] do
+      len = String.length(other)
+      "CAST(#{expr(other, sources, query)} AS #{column_type(type, [])}(#{len}))"
+    end
+
     defp expr(%Tagged{value: other, type: type}, sources, query) do
       "CAST(#{expr(other, sources, query)} AS #{column_type(type, [])})"
     end
