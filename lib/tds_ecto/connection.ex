@@ -315,7 +315,6 @@ if Code.ensure_loaded?(Tds) do
 
     def insert(prefix, table, header, rows, on_conflict, returning) do
       [] = on_conflict(on_conflict, header)
-
       values =
         if header == [] do
           returning(returning, "INSERTED") <> "DEFAULT VALUES"
