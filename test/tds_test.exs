@@ -1,4 +1,4 @@
-Code.require_file "../deps/ecto/integration_test/support/types.exs", __DIR__
+Code.require_file "./integration/support/types.exs", __DIR__
 
 defmodule Tds.Ecto.TdsTest do
   use ExUnit.Case, async: true
@@ -679,6 +679,7 @@ defmodule Tds.Ecto.TdsTest do
 
     assert SQL.execute_ddl(alter) == [
       "ALTER TABLE [posts] ADD [title] nvarchar(100) NOT NULL CONSTRAINT [DF__posts_title] DEFAULT (N'Untitled');",
+      "IF (OBJECT_ID(N'[DF__posts_price]', 'D') IS NOT NULL) BEGIN ALTER TABLE [posts] DROP CONSTRAINT [DF__posts_price];  END;",
       "ALTER TABLE [posts] ALTER COLUMN [price] numeric(8,2);",
       "ALTER TABLE [posts] DROP COLUMN [summary];"
     ] 
@@ -699,8 +700,9 @@ defmodule Tds.Ecto.TdsTest do
       "ALTER TABLE [foo].[posts] ADD [title] nvarchar(100) NOT NULL CONSTRAINT [DF_foo_posts_title] DEFAULT (N'Untitled'); ",
       "ALTER TABLE [foo].[posts] ADD [author_id] BIGINT; ",
       "ALTER TABLE [foo].[posts] ADD CONSTRAINT [FK_foo_posts_author_id] FOREIGN KEY ([author_id]) REFERENCES [foo].[author]([id]); ",
+      "IF (OBJECT_ID(N'[DF_foo_posts_price]', 'D') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [DF_foo_posts_price];  END; ",
       "ALTER TABLE [foo].[posts] ALTER COLUMN [price] numeric(8,2) NULL; ",
-      "IF (OBJECT_ID(N'[DF_foo_posts_cost]', 'DF') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [DF_foo_posts_cost];  END; ",
+      "IF (OBJECT_ID(N'[DF_foo_posts_cost]', 'D') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [DF_foo_posts_cost];  END; ",
       "ALTER TABLE [foo].[posts] ALTER COLUMN [cost] integer NULL; ",
       "ALTER TABLE [foo].[posts] ADD CONSTRAINT [DF_foo_posts_cost] DEFAULT (NULL) FOR [cost]; ",
       "IF (OBJECT_ID(N'[FK_foo_posts_permalink_id]', 'F') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [FK_foo_posts_permalink_id];  END; ",

@@ -3,7 +3,7 @@ defmodule TDS.Ecto.Mixfile do
 
   @version "2.1.3"
 
-  def project do
+  def project() do
     [
       app: :tds_ecto,
       version: @version,
@@ -17,7 +17,7 @@ defmodule TDS.Ecto.Mixfile do
   # Configuration for the OTP application
   #
   # Type `mix help compile.app` for more information
-  def application do
+  def application() do
     [applications: [:tds, :ecto]]
   end
 
@@ -36,7 +36,7 @@ defmodule TDS.Ecto.Mixfile do
     """
   end
 
-  defp package do
+  defp package() do
     [ name: "tds_ecto",
       files: ["lib", "mix.exs", "README*"],
       maintainers: ["Justin Schneck", "Eric Witchin", "Milan Jaric"],

@@ -1,23 +1,21 @@
 defmodule Tds.Ecto.Utils do
-  # types 
-  # "U" - table, 
-  # "C", "PK", "UQ", "F ", "D "" - constraints
-  defmacro if_object_exists(condition, name, type, do: statement) do
-    quote do
-      if (unquote(condition)) do
-        [
-          "IF (OBJECT_ID(N'#{unquote(name)}', '#{unquote(type)}') IS NOT NULL) BEGIN ",
-          unquote(statement),
-          " END; "
-        ]
-      else
-        []
-      end
+  @moduledoc false
+
+  # types
+  # "U" - table,
+  # "C", "PK", "UQ", "F ", "D " - constraints
+  defmacro if_object_exists(name, type, do: statement) do
+    quote location: :keep do
+      [
+        "IF (OBJECT_ID(N'#{unquote(name)}', '#{unquote(type)}') IS NOT NULL) BEGIN ",
+        unquote(statement), " ",
+        "END; "
+      ]
     end
   end
 
   defmacro if_index_exists(condition, index_name, table_name) do
-    quote do
+    quote location: :keep do
       if(unquote(condition)) do
         [
           "IF EXISTS (SELECT name FROM sys.indexes WHERE name = N'",
