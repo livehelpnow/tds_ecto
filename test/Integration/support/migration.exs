@@ -11,7 +11,7 @@ defmodule Ecto.Integration.Migration do
     create table(:posts) do
       add :title, :string, size: 100
       add :counter, :integer
-      add :text, :varchar
+      add :text, :varchar, size: 100
       add :bid, :binary_id
       add :uuid, :uuid
       add :meta, :map

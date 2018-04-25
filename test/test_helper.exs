@@ -6,7 +6,8 @@ ExUnit.start(
     :array_type,
     :case_sensitive,
     :modify_foreign_key_on_update,
-    :modify_foreign_key_on_delete
+    :modify_foreign_key_on_delete,
+    :uses_usec
   ]
 )
 
@@ -89,13 +90,14 @@ end
 
 # :dbg.tracer()
 # :dbg.p(:all,:c)
-#:dbg.tpl(Tds.Ecto.Connection, :column_changes, :x)
-#:dbg.tpl(Tds.Protocol, :handle_prepare, :x)
-#:dbg.tpl(Tds.Protocol, :handle_execute, :x)
-#:dbg.tpl(Ecto.Repo.Schema, :insert_all, :x)
+# :dbg.tpl(Tds.Ecto.Connection, :column_changes, :x)
+# :dbg.tpl(Tds.Protocol, :handle_prepare, :x)
+# :dbg.tpl(Tds.Protocol, :handle_execute, :x)
+# :dbg.tpl(Ecto.Repo.Schema, :insert_all, :x)
 # :dbg.tpl(Ecto.Repo.Schema, :do_insert_all, :x)
 # :dbg.tpl(Ecto.Adapters.SQL, :unzip_inserts, :x)
 # :dbg.tpl(Tds.Ecto.Connection, :insert, :x)
+# :dbg.tpl(Tds.Ecto.Connection, :join, :x)
 # :dbg.tpl(Tds.Ecto, :insert_all, :x)
 
 :erlang.system_flag(:backtrace_depth, 50)

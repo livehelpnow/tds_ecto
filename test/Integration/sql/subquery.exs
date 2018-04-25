@@ -24,7 +24,10 @@ defmodule Ecto.Integration.SubQueryTest do
   test "from: subqueries with map and select expression" do
     TestRepo.insert!(%Post{text: "hello", public: true})
 
-    query = from p in Post, select: %{text: p.text, pub: not p.public}
+    query = from p in Post, select: %{
+      text: p.text,
+      pub: fragment("CAST(CASE ? WHEN 1 THEN 0 ELSE 1 END AS BIT)", p.public)
+    }
     assert ["hello"] =
            TestRepo.all(from p in subquery(query), select: p.text)
     assert [%{text: "hello", pub: false}] =
@@ -35,10 +38,15 @@ defmodule Ecto.Integration.SubQueryTest do
            TestRepo.all(from p in subquery(query), select: {p, p.pub})
   end
 
+  @tag :subquery_with_map_update
   test "from: subqueries with map update and select expression" do
     TestRepo.insert!(%Post{text: "hello", public: true})
 
-    query = from p in Post, select: %{p | public: not p.public}
+    query = from p in Post,
+            select: %{
+              p |
+              public: fragment("CAST(CASE ? WHEN 1 THEN 0 ELSE 1 END AS BIT)", p.public)
+            }
     assert ["hello"] =
            TestRepo.all(from p in subquery(query), select: p.text)
     assert [%Post{text: "hello", public: false}] =
@@ -59,19 +67,20 @@ defmodule Ecto.Integration.SubQueryTest do
            TestRepo.all(from p in subquery(query), select: p)
   end
 
+  @tag :subqueries_with_aggregates
   test "from: subqueries with aggregates" do
     TestRepo.insert!(%Post{visits: 10})
     TestRepo.insert!(%Post{visits: 11})
     TestRepo.insert!(%Post{visits: 13})
 
-    query = from p in Post, select: [:visits], order_by: [asc: :visits]
+    query = from p in Post, select: [:visits]
     assert [13] = TestRepo.all(from p in subquery(query), select: max(p.visits))
-    query = from p in Post, select: [:visits], order_by: [asc: :visits], limit: 2
+    query = from p in Post, select: [:visits], limit: 2, order_by: [asc: :visits]
     assert [11] = TestRepo.all(from p in subquery(query), select: max(p.visits))
 
-    query = from p in Post, order_by: [asc: :visits]
+    query = from p in Post
     assert [13] = TestRepo.all(from p in subquery(query), select: max(p.visits))
-    query = from p in Post, order_by: [asc: :visits], limit: 2
+    query = from p in Post, limit: 2, order_by: [asc: :visits]
     assert [11] = TestRepo.all(from p in subquery(query), select: max(p.visits))
   end
 
@@ -96,6 +105,7 @@ defmodule Ecto.Integration.SubQueryTest do
            TestRepo.all(from c in Comment, join: p in subquery(query), on: c.post_id == p.id, select: p)
   end
 
+  @tag :subqueries_with_parameters
   test "join: subqueries with parameters" do
     TestRepo.insert!(%Post{visits: 10, text: "hello"})
     TestRepo.insert!(%Post{visits: 11, text: "hello"})
@@ -105,9 +115,10 @@ defmodule Ecto.Integration.SubQueryTest do
 
     query = from p in Post, where: p.visits >= ^11 and p.visits <= ^13
     query = from c in Comment,
-              join: p in subquery(query),
+              cross_join: p in subquery(query),
               where: p.text == ^"hello",
               select: fragment("? + ?", p.visits, ^1)
+
     assert [12, 12] = TestRepo.all(query)
   end
 end

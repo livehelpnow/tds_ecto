@@ -528,20 +528,31 @@ if Code.ensure_loaded?(Tds) do
     defp join(%Query{joins: []}, _sources), do: nil
 
     defp join(%Query{joins: joins, lock: lock} = query, sources) do
-      Enum.map_join(joins, " ", fn %JoinExpr{
-                                     on: %QueryExpr{
-                                       expr: expr
-                                     },
-                                     qual: qual,
-                                     ix: ix,
-                                     source: source
-                                   } ->
-        {join, name, _model} = elem(sources, ix)
-        qual = join_qual(qual)
-        join = join || "(" <> expr(source, sources, query) <> ")"
+      Enum.map_join(joins, " ", fn
+        %JoinExpr{
+          on: %QueryExpr{expr: _},
+          qual: :cross,
+          ix: ix,
+          source: source
+        } ->
+          {join, name, _model} = elem(sources, ix)
+          # qual = join_qual(qual)
+          join = join || "(" <> expr(source, sources, query) <> ")"
 
-        "#{qual} JOIN " <>
-          join <> " AS #{name} " <> lock(lock) <> "ON " <> expr(expr, sources, query)
+          "CROSS JOIN #{join} AS #{name} #{lock(lock)}"
+
+        %JoinExpr{
+          on: %QueryExpr{expr: expr},
+          qual: qual,
+          ix: ix,
+          source: source
+        } ->
+          {join, name, _model} = elem(sources, ix)
+          qual = join_qual(qual)
+          join = join || "(" <> expr(source, sources, query) <> ")"
+
+          "#{qual} JOIN " <>
+            join <> " AS #{name} " <> lock(lock) <> "ON " <> expr(expr, sources, query)
       end)
     end
 
