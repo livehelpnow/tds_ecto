@@ -7,7 +7,8 @@ ExUnit.start(
     :case_sensitive,
     :modify_foreign_key_on_update,
     :modify_foreign_key_on_delete,
-    :uses_usec
+    :uses_usec,
+    :lock_for_update
   ]
 )
 
