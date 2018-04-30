@@ -3,7 +3,7 @@ defmodule Ecto.Integration.Migration do
 
   def change do
     create table(:users, comment: "users table") do
-      add :name, :text, comment: "name column"
+      add :name, :string, size: 250, comment: "name column"
       add :custom_id, :uuid
       timestamps()
     end
@@ -73,7 +73,7 @@ defmodule Ecto.Integration.Migration do
     end
 
     create table(:transactions) do
-      add :text, :text
+      add :text, :string, size: :max
     end
 
     create table(:lock_counters) do

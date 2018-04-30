@@ -37,7 +37,7 @@ defmodule Ecto.Integration.Post do
     field :visits, :integer
     field :intensity, :float
     field :bid, :binary_id
-    field :uuid, Ecto.UUID, autogenerate: true
+    field :uuid, Tds.UUID, autogenerate: true
     field :meta, :map
     field :links, {:map, :string}
     field :posted, :date
@@ -166,6 +166,16 @@ defmodule Ecto.Integration.User do
   end
 end
 
+defmodule Ecto.Integration.CustomCustom do
+  use Ecto.Integration.Schema
+
+  @primary_key false
+  schema "customs_customs" do
+    field :custom_id1, :binary_id, primary_key: true
+    field :custom_id2, :binary_id, primary_key: true
+  end
+end
+
 defmodule Ecto.Integration.Custom do
   @moduledoc """
   This module is used to test:
@@ -179,9 +189,9 @@ defmodule Ecto.Integration.Custom do
 
   @primary_key {:bid, :binary_id, autogenerate: true}
   schema "customs" do
-    field :uuid, Ecto.UUID
+    field :uuid, Tds.UUID
     many_to_many :customs, Ecto.Integration.Custom,
-      join_through: "customs_customs", join_keys: [custom_id1: :bid, custom_id2: :bid],
+      join_through: Ecto.Integration.CustomCustom, join_keys: [custom_id1: :bid, custom_id2: :bid],
       on_delete: :delete_all, on_replace: :delete
   end
 end
@@ -213,7 +223,7 @@ defmodule Ecto.Integration.Tag do
 
   schema "tags" do
     field :ints, {:array, :integer}
-    field :uuids, {:array, Ecto.UUID}
+    field :uuids, {:array, Tds.UUID}
     embeds_many :items, Ecto.Integration.Item
   end
 end

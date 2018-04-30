@@ -9,6 +9,7 @@ config :tds_ecto,
     hostname: "localhost",
     username: "sa",
     password: System.get_env("SQL_PASSWORD") || "some!Password",
-    database: "test"
+    database: "test",
+    set_allow_snapshot_isolation: :on
   ]
 

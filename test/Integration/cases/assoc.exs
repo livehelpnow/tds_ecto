@@ -193,6 +193,7 @@ defmodule Ecto.Integration.AssocTest do
     assert [0] == TestRepo.all(from(p in Permalink, select: count(p.id)))
   end
 
+  @tag :has_one_on_replace_nilify
   test "has_one changeset assoc (on_replace: :nilify)" do
     # Insert new
     changeset =
@@ -466,11 +467,13 @@ defmodule Ecto.Integration.AssocTest do
     assert up1.updated_at
   end
 
+  @tag :self_referencing_binary_id
   test "many_to_many changeset assoc with self-referential binary_id" do
     assoc_custom = TestRepo.insert!(%Custom{})
-    custom = TestRepo.insert!(%Custom{customs: [assoc_custom]})
 
+    custom = TestRepo.insert!(%Custom{uuid: Tds.UUID.generate(), customs: [assoc_custom]})
     custom = Custom |> TestRepo.get!(custom.bid) |> TestRepo.preload(:customs)
+
     assert [_] = custom.customs
 
     custom =

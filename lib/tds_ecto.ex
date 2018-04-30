@@ -59,42 +59,34 @@ defmodule Tds.Ecto do
   ## Custom MSSQL types
 
   @doc false
+  def autogenerate(:binary_id) do
+    Tds.UUID.bingenerate()
+  end
+  def autogenerate(type), do: super(type)
+
+  @doc false
   def loaders(:map, type), do: [&json_decode/1, type]
   def loaders({:map, _}, type), do: [&json_decode/1, type]
   def loaders(:boolean, type), do: [&bool_decode/1, type]
-  def loaders(:binary_id, type), do: [&uuid_decode/1, type]
-
+  def loaders(:binary_id, type), do: [&Tds.UUID.load/1, type]
   def loaders({:embed, _} = type, _),
     do: [&json_decode/1, &Ecto.Adapters.SQL.load_embed(type, &1)]
-
-  # def loaders({:embed, _} = type, binary) when is_binary(binary), do: [type, json_library.decode!(binary)]
   def loaders(_, type), do: [type]
 
   def dumpers({:embed, _} = type, _), do: [&Ecto.Adapters.SQL.dump_embed(type, &1)]
-  def dumpers(:binary_id, type), do: [type, &uuid_encode/1]
+  def dumpers(:binary_id, type), do: [type, &Tds.UUID.dump/1]
   def dumpers(_, type), do: [type]
 
   defp bool_decode(<<0>>), do: {:ok, false}
   defp bool_decode(<<1>>), do: {:ok, true}
   defp bool_decode(0), do: {:ok, false}
   defp bool_decode(1), do: {:ok, true}
-  defp bool_decode(x), do: {:ok, x}
+  defp bool_decode(x) when is_boolean(x), do: {:ok, x}
 
   defp json_decode(x) when is_binary(x), do: {:ok, json_library().decode!(x)}
   defp json_decode(x), do: {:ok, x}
 
   defp json_library(), do: Application.get_env(:ecto, :json_library)
-
-  defp uuid_encode(value) do
-    case Ecto.UUID.dump(value) do
-      {:ok, value} -> {:ok, Tds.Types.encode_uuid(value)}
-      any -> any
-    end
-  end
-
-  defp uuid_decode(value) do
-    Ecto.UUID.load(value)
-  end
 
   # Storage API
   @doc false
@@ -186,24 +178,6 @@ defmodule Tds.Ecto do
 
     {num, rows}
   end
-
-  # defp append_versions(_table, [], contents) do
-  #   {:ok, contents}
-  # end
-  # defp append_versions(table, versions, contents) do
-  #   {:ok,
-  #     contents <>
-  #     "INSERT INTO [#{table}] (version) VALUES " <>
-  #     Enum.map_join(versions, ", ", &"(#{&1})") <>
-  #     ~s[;\n\n]}
-  # end
-
-  # def execute_ddl(repo, definition, opts) do
-  #   sql = @conn.execute_ddl(definition, repo)
-  #   IO.puts(sql)
-  #   Ecto.Adapters.SQL.query(repo, sql, [], opts)
-  #   :ok
-  # end
 
   defp run_query(opts, sql_command) do
     {:ok, _} = Application.ensure_all_started(:tds)

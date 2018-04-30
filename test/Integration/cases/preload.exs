@@ -152,8 +152,8 @@ defmodule Ecto.Integration.PreloadTest do
     %Post{id: pid1} = TestRepo.insert!(%Post{})
     %Post{id: pid2} = TestRepo.insert!(%Post{})
 
-    %Permalink{id: lid1} = TestRepo.insert!(%Permalink{post_id: pid1})
-    %Permalink{id: lid2} = TestRepo.insert!(%Permalink{post_id: pid2})
+    %Permalink{id: lid1} = TestRepo.insert!(%Permalink{url: "1", post_id: pid1})
+    %Permalink{id: lid2} = TestRepo.insert!(%Permalink{url: "2", post_id: pid2})
 
     %Comment{} = c1 = TestRepo.insert!(%Comment{post_id: pid1})
     %Comment{} = c2 = TestRepo.insert!(%Comment{post_id: pid1})
@@ -191,8 +191,8 @@ defmodule Ecto.Integration.PreloadTest do
     %Post{id: pid1} = TestRepo.insert!(%Post{})
     %Post{id: pid2} = TestRepo.insert!(%Post{})
 
-    %Permalink{} = l1 = TestRepo.insert!(%Permalink{post_id: pid1})
-    %Permalink{} = l2 = TestRepo.insert!(%Permalink{post_id: pid2})
+    %Permalink{} = l1 = TestRepo.insert!(%Permalink{url: "1", post_id: pid1})
+    %Permalink{} = l2 = TestRepo.insert!(%Permalink{url: "2", post_id: pid2})
 
     %User{id: uid1} = TestRepo.insert!(%User{name: "foo"})
     %User{id: uid2} = TestRepo.insert!(%User{name: "bar"})
@@ -317,6 +317,7 @@ defmodule Ecto.Integration.PreloadTest do
     assert [] = pe3.comments
   end
 
+  @tag :preload_with_query
   test "preload with query" do
     p1 = TestRepo.insert!(%Post{title: "1"})
     p2 = TestRepo.insert!(%Post{title: "2"})
@@ -332,7 +333,7 @@ defmodule Ecto.Integration.PreloadTest do
 
     # With empty query
     assert [pe3, pe1, pe2] = TestRepo.preload([p3, p1, p2],
-                                              comments: from(c in Comment, where: false))
+                                              comments: from(c in Comment, where: 1 == 0))
     assert [] = pe1.comments
     assert [] = pe2.comments
     assert [] = pe3.comments
@@ -340,8 +341,13 @@ defmodule Ecto.Integration.PreloadTest do
     # With custom select
     assert [pe3, pe1, pe2] = TestRepo.preload([p3, p1, p2],
                                               comments: from(c in Comment, select: c.id))
-    assert [^cid1, ^cid2] = pe1.comments
-    assert [^cid3, ^cid4] = pe2.comments
+
+    # Query will be: SELECT c0.[post_id], c0.[id] FROM [comments] AS c0 WHERE (c0.[post_id] IN (@1,@2,@3)) ORDER BY c0.[post_id]
+    # mssql do not guarantee order of c0.id!
+    # assert [^cid1, ^cid2] = pe1.comments
+    # assert [^cid3, ^cid4] = pe2.comments
+    assert cid1 in pe1.comments and cid2 in pe1.comments and length(pe1.comments) == 2
+    assert cid3 in pe2.comments and cid4 in pe2.comments and length(pe2.comments) == 2
     assert [] = pe3.comments
 
     # With custom ordered query
@@ -497,6 +503,7 @@ defmodule Ecto.Integration.PreloadTest do
     assert catch_error(TestRepo.preload(p, [:comments], prefix: "this_surely_does_not_exist"))
   end
 
+  @tag :preload_with_binary_id
   test "preload with binary_id" do
     c = TestRepo.insert!(%Custom{})
     u = TestRepo.insert!(%User{custom_id: c.bid})
@@ -570,6 +577,7 @@ defmodule Ecto.Integration.PreloadTest do
     assert [%Comment{id: ^cid2, text: "0", post: %Ecto.Association.NotLoaded{}}] = p2.comments
   end
 
+  @tag :preload_keyword_query
   test "preload keyword query" do
     p1 = TestRepo.insert!(%Post{title: "1"})
     p2 = TestRepo.insert!(%Post{title: "2"})
@@ -589,7 +597,7 @@ defmodule Ecto.Integration.PreloadTest do
     assert [] = p3.comments
 
     # Query with interpolated preload query
-    query = from(p in Post, preload: [comments: ^from(c in Comment, where: false)], select: p)
+    query = from(p in Post, preload: [comments: ^from(c in Comment, where: 1 == 0)], select: p)
 
     assert [p1, p2, p3] = TestRepo.all(query)
     assert [] = p1.comments

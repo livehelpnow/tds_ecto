@@ -96,7 +96,7 @@ defmodule Tds.Ecto.TdsTest do
   test "from without model" do
     query = "model" |> select([r], r.x) |> normalize
     assert SQL.all(query) == ~s{SELECT m0.[x] FROM [model] AS m0}
-    
+
     # todo: somthing is changed into ecto causing this exception to be missed.
     # instead query is built as "SELECT &(0) FROM [posts] AS p0" which won't work
     assert_raise Ecto.QueryError, ~r"TDS Adapter does not support selecting all fields from", fn ->
@@ -110,7 +110,7 @@ defmodule Tds.Ecto.TdsTest do
     query = "public.posts" |> select([r], r.x) |> normalize
     assert SQL.all(query) == ~s{SELECT p0.[x] FROM [public].[posts] AS p0}
   end
-  
+
   test "from with schema source, linked database" do
     query = "externaldb.public.posts" |> select([r], r.x) |> normalize
     assert_raise ArgumentError, ~r"TDS addapter do not support query of external database or linked server table", fn ->
@@ -268,7 +268,7 @@ defmodule Tds.Ecto.TdsTest do
   end
 
   test "tagged type" do
-    query = Model |> select([], type(^"601d74e4-a8d3-4b6e-8365-eddb4c893327", Ecto.UUID)) |> normalize
+    query = Model |> select([], type(^"601d74e4-a8d3-4b6e-8365-eddb4c893327", Tds.UUID)) |> normalize
     assert SQL.all(query) == ~s{SELECT CAST(@1 AS uniqueidentifier) FROM [model] AS m0}
   end
 
@@ -300,11 +300,11 @@ defmodule Tds.Ecto.TdsTest do
   test "in expression with multiple where conditions" do
     xs = [1, 2, 3]
     y = 4
-    query = Model 
-      |> where([m], m.x in ^xs) 
-      |> where([m], m.y == ^y) 
-      |> select([m], m.x) 
-      
+    query = Model
+      |> where([m], m.x in ^xs)
+      |> where([m], m.y == ^y)
+      |> select([m], m.x)
+
     assert SQL.all(query |> normalize) == ~s{SELECT m0.[x] FROM [model] AS m0 WHERE (m0.[x] IN (@1,@2,@3)) AND (m0.[y] = @4)}
   end
 
@@ -565,7 +565,7 @@ defmodule Tds.Ecto.TdsTest do
                 {:add, :on_hand, :integer, [default: 0, null: true]},
                 {:add, :is_active, :boolean, [default: true]}]}
 
-    assert SQL.execute_ddl(create) == [ 
+    assert SQL.execute_ddl(create) == [
     "CREATE TABLE [foo].[posts] (",
       "[name] nvarchar(20) NOT NULL CONSTRAINT [DF_foo_posts_name] DEFAULT (N'Untitled'), ",
       "[price] numeric(8,2) CONSTRAINT [DF_foo_posts_price] DEFAULT (expr), ",
@@ -579,10 +579,10 @@ defmodule Tds.Ecto.TdsTest do
     create = {:create, table(:posts),
                [{:add, :id, :serial, [primary_key: true]},
                 {:add, :category_id, references(:categories), []} ]}
-    assert SQL.execute_ddl(create) == [ 
+    assert SQL.execute_ddl(create) == [
       "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] BIGINT, ",
       "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
-      "REFERENCES [categories]([id]), CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))" 
+      "REFERENCES [categories]([id]), CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"
       ] |> IO.iodata_to_binary
 
   end
@@ -682,7 +682,7 @@ defmodule Tds.Ecto.TdsTest do
       "IF (OBJECT_ID(N'[DF__posts_price]', 'D') IS NOT NULL) BEGIN ALTER TABLE [posts] DROP CONSTRAINT [DF__posts_price];  END;",
       "ALTER TABLE [posts] ALTER COLUMN [price] numeric(8,2);",
       "ALTER TABLE [posts] DROP COLUMN [summary];"
-    ] 
+    ]
       |> Enum.map(&"#{&1} ")
       |> IO.iodata_to_binary
   end
@@ -770,7 +770,7 @@ defmodule Tds.Ecto.TdsTest do
     assert SQL.execute_ddl(create) ==
            ~s|CREATE INDEX [posts_category_id_permalink_index] ON [posts] ([category_id], [permalink]);|
 
-    # below should be handled with collation on column which is indexed 
+    # below should be handled with collation on column which is indexed
 
     # create = {:create, index(:posts, ["lower(permalink)"], name: "posts$main")}
     # assert SQL.execute_ddl(create) ==
@@ -790,7 +790,7 @@ defmodule Tds.Ecto.TdsTest do
   test "create index with prefix if not exists" do
     create = {:create_if_not_exists, index(:posts, [:category_id, :permalink], prefix: :foo)}
     assert SQL.execute_ddl(create) ==
-      ["IF NOT EXISTS (SELECT name FROM sys.indexes ", 
+      ["IF NOT EXISTS (SELECT name FROM sys.indexes ",
        "WHERE name = N'posts_category_id_permalink_index' ",
        "AND object_id = OBJECT_ID(N'foo.posts')) ",
        "CREATE INDEX [posts_category_id_permalink_index] ON [foo].[posts] ([category_id], [permalink]);"]
@@ -831,11 +831,11 @@ defmodule Tds.Ecto.TdsTest do
 
   test "drop index with prefix if exists" do
     drop = {:drop_if_exists, index(:posts, [:id], name: "posts_category_id_permalink_index", prefix: :foo)}
-    assert SQL.execute_ddl(drop) == 
-      ["IF EXISTS (SELECT name FROM sys.indexes ", 
+    assert SQL.execute_ddl(drop) ==
+      ["IF EXISTS (SELECT name FROM sys.indexes ",
        "WHERE name = N'posts_category_id_permalink_index' ",
        "AND object_id = OBJECT_ID(N'foo.posts')) ",
-       "DROP INDEX [posts_category_id_permalink_index] ON [foo].[posts];"] 
+       "DROP INDEX [posts_category_id_permalink_index] ON [foo].[posts];"]
        |> IO.iodata_to_binary()
   end
 

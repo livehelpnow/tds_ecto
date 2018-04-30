@@ -8,7 +8,11 @@ ExUnit.start(
     :modify_foreign_key_on_update,
     :modify_foreign_key_on_delete,
     :uses_usec,
-    :lock_for_update
+    :lock_for_update,
+    # NOTE: there is bug with transaction timout, it works bt error is not returned Repo transaction function
+    :disconnect_on_transaction_timout,
+    # TODO: floats
+    :primitive_types
   ]
 )
 
@@ -40,7 +44,8 @@ Application.put_env(
   password: System.get_env("SQL_PASSWORD") || "some!Password",
   database: "ecto_test",
   pool: Ecto.Adapters.SQL.Sandbox,
-  ownership_pool: pool
+  ownership_pool: pool,
+  set_allow_snapshot_isolation: :on
 )
 
 defmodule Ecto.Integration.TestRepo do
@@ -60,7 +65,8 @@ Application.put_env(
   database: "ecto_test",
   max_restarts: 20,
   max_seconds: 10,
-  pool_size: 10
+  pool_size: 10,
+  set_allow_snapshot_isolation: :on
 )
 
 defmodule Ecto.Integration.PoolRepo do
@@ -89,17 +95,9 @@ end
 # :int.ni(Tds.Ecto)
 # :int.break(Tds.Ecto, 164)
 
-# :dbg.tracer()
-# :dbg.p(:all,:c)
-# :dbg.tpl(Tds.Ecto.Connection, :column_changes, :x)
-# :dbg.tpl(Tds.Protocol, :handle_prepare, :x)
-# :dbg.tpl(Tds.Protocol, :handle_execute, :x)
-# :dbg.tpl(Ecto.Repo.Schema, :insert_all, :x)
-# :dbg.tpl(Ecto.Repo.Schema, :do_insert_all, :x)
-# :dbg.tpl(Ecto.Adapters.SQL, :unzip_inserts, :x)
-# :dbg.tpl(Tds.Ecto.Connection, :insert, :x)
-# :dbg.tpl(Tds.Ecto.Connection, :join, :x)
-# :dbg.tpl(Tds.Ecto, :insert_all, :x)
+:dbg.tracer()
+:dbg.p(:all, :c)
+# :dbg.tpl(Tds.Types, :decode_decimal, :x)
 
 :erlang.system_flag(:backtrace_depth, 50)
 

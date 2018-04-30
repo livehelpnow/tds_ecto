@@ -1,7 +1,7 @@
 defmodule TDS.Ecto.Mixfile do
   use Mix.Project
 
-  @version "2.1.3"
+  @version "2.2.0"
 
   def project() do
     [
@@ -24,7 +24,8 @@ defmodule TDS.Ecto.Mixfile do
   defp deps() do
     [
       {:ecto, ">= 2.0.0"},
-      {:tds, ">= 1.0.14"},
+      {:tds, "~> 1.1"},
+      {:rexbug, ">= 1.0.0", only: :test, optional: true},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:poison, ">= 0.0.0", only: :test}
     ]

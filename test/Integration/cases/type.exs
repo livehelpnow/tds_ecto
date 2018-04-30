@@ -7,6 +7,7 @@ defmodule Ecto.Integration.TypeTest do
   alias Ecto.Integration.TestRepo
   import Ecto.Query
 
+  @tag :primitive_types
   test "primitive types" do
     integer  = 1
     float    = 0.1
@@ -59,6 +60,7 @@ defmodule Ecto.Integration.TypeTest do
     assert [^datetime] = TestRepo.all(query)
   end
 
+  @tag :tagged_types
   test "tagged types" do
     TestRepo.insert!(%Post{})
 
@@ -72,8 +74,8 @@ defmodule Ecto.Integration.TypeTest do
     assert [1] = TestRepo.all(from Post, select: type(^"1", Elixir.Custom.Permalink))
 
     # Custom types
-    uuid = Ecto.UUID.generate()
-    assert [^uuid] = TestRepo.all(from Post, select: type(^uuid, Ecto.UUID))
+    uuid = Tds.UUID.generate()
+    assert [^uuid] = TestRepo.all(from Post, select: type(^uuid, Tds.UUID))
   end
 
   test "binary id type" do
@@ -228,7 +230,11 @@ defmodule Ecto.Integration.TypeTest do
 
     assert [1] = TestRepo.all(from p in Post, select: type(sum(p.cost), :integer))
     assert [1.0] = TestRepo.all(from p in Post, select: type(sum(p.cost), :float))
-    assert [^decimal] = TestRepo.all(from p in Post, select: type(sum(p.cost), :decimal))
+    # MSSQL will set precison to DECIMAL(X, 0) in case below, it won't keep precision of the column it aggregates
+
+    assert [Decimal.new("1")] == TestRepo.all(from p in Post, select: type(sum(p.cost), :decimal))
+    # if you need precison as in column, use below
+    assert [^decimal] = TestRepo.all(from p in Post, select: fragment("cast(sum(?) as DECIMAL(10,1))", p.cost))
   end
 
   test "schemaless types" do

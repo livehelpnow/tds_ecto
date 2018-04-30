@@ -116,43 +116,37 @@ if Code.ensure_loaded?(Tds) do
     # String parameter
     defp prepare_param(%Tagged{value: value, type: :string}), do: {value, :string}
     # DateTime
-    defp prepare_param(%Tagged{
-           value: {{y, m, d}, {hh, mm, ss, us}},
-           type: :datetime
-         })
-         when us > 0,
-         do: {{{y, m, d}, {hh, mm, ss, us}}, :datetime2}
+    defp prepare_param(
+      %Tagged{
+        value: {{y, m, d}, {hh, mm, ss, us}},
+        type: :datetime
+      }
+    ) when us > 0,
+    do: {{{y, m, d}, {hh, mm, ss, us}}, :datetime2}
 
-    defp prepare_param(%Tagged{
-           value: {{y, m, d}, {hh, mm, ss, _}},
-           type: :datetime
-         }),
-         do: {{{y, m, d}, {hh, mm, ss}}, :datetime}
+    defp prepare_param(
+      %Tagged{
+        value: {{y, m, d}, {hh, mm, ss, _}},
+        type: :datetime
+      }
+    ) do
+      {{{y, m, d}, {hh, mm, ss}}, :datetime}
+    end
 
     # UUID and BinaryID
-    defp prepare_param(%Tagged{value: nil, type: type}) when type in [:binary_id, :uuid],
-      do: {nil, :binary}
-
     defp prepare_param(%Tagged{value: value, type: type}) when type in [:binary_id, :uuid] do
-      if String.length(value) > 16 do
-        {:ok, value} = Ecto.UUID.cast(value)
-        {value, :string}
-      else
-        {value, :uuid}
+      case value do
+        <<_::64, ?-, _::32, ?-, _::32, ?-, _::32, ?-, _::96>> ->
+          {:ok, value} = Tds.UUID.dump(value)
+          {value, :binary}
+        any ->
+          {any, :binary}
       end
     end
 
-    # Ecto.UUID
-    defp prepare_param(%Tagged{value: nil, tag: Ecto.UUID}), do: {nil, :binary}
+    defp prepare_param(%Tagged{value: _, tag: Tds.UUID}=p), do: prepare_param %{p | type: :uuid}
 
-    defp prepare_param(%Tagged{value: value, tag: Ecto.UUID} = _) do
-      {value, :binary}
-    end
-
-    defp prepare_param(%Tagged{value: value, type: type})
-         when type in [:binary_id, :uuid],
-         do: {value, type}
-
+    # any binary
     defp prepare_param(%Tagged{value: value, type: nil}) when is_binary(value) do
       type = if String.valid?(value), do: :string, else: :binary
       {value, type}
@@ -195,51 +189,15 @@ if Code.ensure_loaded?(Tds) do
       Application.get_env(:ecto, :json_library)
     end
 
-    def to_constraints(%Tds.Error{
-          mssql: %{
-            number: 2601,
-            msg_text: message
-          }
-        }) do
-      # Might non match on non-English error messages
-      case Regex.run(~r/('.*?'|".*?").*('.*?'|".*?")/, message, capture: :all_but_first) do
-        [_, index] -> [unique: strip_quotes(index)]
-        _ -> [unique: "<unknown_unique_index>"]
-      end
-    end
+
 
     def to_constraints(%Tds.Error{
           mssql: %{
-            number: 2627,
+            number: errorcode,
             msg_text: message
           }
         }) do
-      # Might non match on non-English error messages
-      case Regex.run(~r/('.*?'|".*?")/, message, capture: :all_but_first) do
-        [index] -> [unique: strip_quotes(index)]
-        _ -> [unique: "<unknown_unique_constraint>"]
-      end
-    end
-
-    def to_constraints(%Tds.Error{
-          mssql: %{
-            number: 547,
-            msg_text: message
-          }
-        }) do
-      # Might non match on non-English error messages
-      case Regex.run(~r/('.*?'|".*?")/, message, capture: :all_but_first) do
-        [foreign_key] -> [unique: strip_quotes(foreign_key)]
-        _ -> [foreign_key: "<unknown_foreign_key>"]
-      end
-    end
-
-    def to_constraints(%Tds.Error{}), do: []
-
-    defp strip_quotes(quoted) do
-      size = byte_size(quoted) - 2
-      <<_, unquoted::binary-size(size), _>> = quoted
-      unquoted
+      Tds.Ecto.ErrorCode.get_constraint_violations(errorcode, message)
     end
 
     ## Transaction
@@ -846,9 +804,14 @@ if Code.ensure_loaded?(Tds) do
 
     defp expr(%Tagged{value: binary, type: :uuid}, _sources, _query) when is_binary(binary) do
       {:ok, binary} =
-        if String.contains?(binary, "-"), do: Ecto.UUID.dump(binary), else: {:ok, binary}
+        case binary do
+          <<_::64, ?-, _::32, ?-, _::32, ?-, _::32, ?-, _::96>> ->
+            Tds.UUID.dump(binary)
 
-      uuid(binary)
+          any ->
+            any
+        end
+      binary
     end
 
     defp expr(%Tagged{value: other, type: type}, sources, query)
@@ -1505,10 +1468,6 @@ if Code.ensure_loaded?(Tds) do
       else
         []
       end
-    end
-
-    def uuid(<<v1::32, v2::16, v3::16, v4::64>>) do
-      <<v1::little-signed-32, v2::little-signed-16, v3::little-signed-16, v4::signed-64>>
     end
 
     defp list_param_to_args(idx, length) do

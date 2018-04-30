@@ -262,7 +262,7 @@ defmodule Ecto.Integration.RepoTest do
 
   @tag :unique_constraint
   test "unique constraint" do
-    changeset = Ecto.Changeset.change(%Post{}, uuid: Ecto.UUID.generate())
+    changeset = Ecto.Changeset.change(%Post{}, uuid: Tds.UUID.generate())
     {:ok, _}  = TestRepo.insert(changeset)
 
     exception =
@@ -294,14 +294,14 @@ defmodule Ecto.Integration.RepoTest do
 
   @tag :unique_constraint
   test "unique constraint from association" do
-    uuid = Ecto.UUID.generate()
+    uuid = Tds.UUID.generate()
     post = & %Post{} |> Ecto.Changeset.change(uuid: &1) |> Ecto.Changeset.unique_constraint(:uuid)
 
     {:error, changeset} =
       TestRepo.insert %User{
         comments: [%Comment{}],
         permalink: %Permalink{},
-        posts: [post.(uuid), post.(uuid), post.(Ecto.UUID.generate)]
+        posts: [post.(uuid), post.(uuid), post.(Tds.UUID.generate)]
       }
 
     [_, p2, _] = changeset.changes.posts
@@ -311,7 +311,7 @@ defmodule Ecto.Integration.RepoTest do
   @tag :id_type
   @tag :unique_constraint
   test "unique constraint with binary_id" do
-    changeset = Ecto.Changeset.change(%Custom{}, uuid: Ecto.UUID.generate())
+    changeset = Ecto.Changeset.change(%Custom{}, uuid: Tds.UUID.generate())
     {:ok, _}  = TestRepo.insert(changeset)
 
     {:error, changeset} =
@@ -502,6 +502,7 @@ defmodule Ecto.Integration.RepoTest do
     assert changeset.errors == [permalink: {"is still associated with this entry", []}]
   end
 
+  @tag :add_contraint
   test "insert and update with failing child foreign key" do
     defmodule Order do
       use Ecto.Integration.Schema
@@ -527,6 +528,8 @@ defmodule Ecto.Integration.RepoTest do
       def comment_changeset(comment, params) do
         comment
         |> cast(params, [:post_id, :text])
+        # todo: this should be |> foreign_key_constraint(:post_id, name: "FK__comments_post_id")
+        |> unique_constraint(:post_id, name: "FK__comments_post_id")
         |> cast_assoc(:post)
         |> assoc_constraint(:post)
       end
@@ -744,7 +747,7 @@ defmodule Ecto.Integration.RepoTest do
     assert TestRepo.delete!(custom)
     refute TestRepo.get(Custom, custom.bid)
 
-    uuid = Ecto.UUID.generate
+    uuid = Tds.UUID.generate
     assert {2, nil} = TestRepo.insert_all(Custom, [%{uuid: uuid}, %{bid: custom.bid}])
     assert [%Custom{bid: bid2, uuid: nil},
             %Custom{bid: bid1, uuid: ^uuid}] = Enum.sort_by(TestRepo.all(Custom), & &1.uuid)
@@ -878,7 +881,7 @@ defmodule Ecto.Integration.RepoTest do
     assert %Post{} = TestRepo.insert!(%Post{title: "2", text: "hai"})
     assert %Post{} = TestRepo.insert!(%Post{title: "3", text: "hai"})
 
-    assert {3, nil} = TestRepo.delete_all(Post, returning: false)
+    assert {3, []} = TestRepo.delete_all(Post, returning: false)
     assert [] = TestRepo.all(Post)
   end
 
@@ -1499,7 +1502,7 @@ defmodule Ecto.Integration.RepoTest do
     @tag :with_conflict_target
     test "source (without an ecto schema) on conflict query and conflict target" do
       on_conflict = [set: [title: "second"]]
-      {:ok, uuid} = Ecto.UUID.dump("6fa459ea-ee8a-3ca4-894e-db77e160355e")
+      {:ok, uuid} = Tds.UUID.dump("6fa459ea-ee8a-3ca4-894e-db77e160355e")
       post = [title: "first", uuid: uuid]
       assert TestRepo.insert_all("posts", [post], on_conflict: on_conflict, conflict_target: [:uuid]) ==
              {1, nil}
