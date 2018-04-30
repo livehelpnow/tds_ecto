@@ -25,7 +25,6 @@ defmodule TDS.Ecto.Mixfile do
     [
       {:ecto, ">= 2.0.0"},
       {:tds, "~> 1.1"},
-      {:rexbug, ">= 1.0.0", only: :test, optional: true},
       {:ex_doc, ">= 0.0.0", only: :dev},
       {:poison, ">= 0.0.0", only: :test}
     ]
