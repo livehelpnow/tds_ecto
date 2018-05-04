@@ -1,3 +1,6 @@
+#v2.2.1
+* Fixing transaction handling (ecto cast_assoc rollsback twice if more than one rpc call is executed in single transaction/change/assoc)
+
 #v2.2.0
 ## Breaking Changes
 UUID/UNIQUEIDENTIFER column is now stored AS IS in database, meaning that compatibility with Ecto.UUID is broken, 

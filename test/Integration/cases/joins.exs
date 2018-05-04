@@ -37,7 +37,7 @@ defmodule Ecto.Integration.JoinsTest do
 
     query = from(c in Comment, join: u in User, on: u.id == c.author_id,
                                where: is_nil(c.post_id))
-    assert {1, nil} = TestRepo.delete_all(query)
+    assert {1, []} = TestRepo.delete_all(query)
     assert [%Comment{}, %Comment{}] = TestRepo.all(Comment)
 
     query = from(c in Comment, join: u in assoc(c, :author),
@@ -281,8 +281,8 @@ defmodule Ecto.Integration.JoinsTest do
     %Post{id: pid1} = TestRepo.insert!(%Post{})
     %Post{id: pid2} = TestRepo.insert!(%Post{})
 
-    %Permalink{} = TestRepo.insert!(%Permalink{post_id: pid1})
-    %Permalink{} = TestRepo.insert!(%Permalink{post_id: pid2})
+    %Permalink{} = TestRepo.insert!(%Permalink{url: "1", post_id: pid1})
+    %Permalink{} = TestRepo.insert!(%Permalink{url: "2", post_id: pid2})
 
     %User{id: uid1} = TestRepo.insert!(%User{})
     %User{id: uid2} = TestRepo.insert!(%User{})

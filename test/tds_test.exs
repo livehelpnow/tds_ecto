@@ -581,7 +581,7 @@ defmodule Tds.Ecto.TdsTest do
                 {:add, :category_id, references(:categories), []} ]}
     assert SQL.execute_ddl(create) == [
       "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] BIGINT, ",
-      "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
+      "CONSTRAINT [posts_category_id_fkey] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]), CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"
       ] |> IO.iodata_to_binary
 
@@ -616,7 +616,7 @@ defmodule Tds.Ecto.TdsTest do
                 {:add, :category_id, references(:categories, on_delete: :nothing), []} ]}
     assert SQL.execute_ddl(create) == [
       "CREATE TABLE [posts] ([id] bigint IDENTITY(1,1), [category_id] BIGINT, ",
-      "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
+      "CONSTRAINT [posts_category_id_fkey] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]), CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"
     ] |> IO.iodata_to_binary
   end
@@ -627,7 +627,7 @@ defmodule Tds.Ecto.TdsTest do
                 {:add, :category_id, references(:categories, on_delete: :nilify_all), []} ]}
     assert SQL.execute_ddl(create) == [
       "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] BIGINT, ",
-      "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
+      "CONSTRAINT [posts_category_id_fkey] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]) ON DELETE SET NULL, ",
       "CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"] |> IO.iodata_to_binary
   end
@@ -638,7 +638,7 @@ defmodule Tds.Ecto.TdsTest do
                 {:add, :category_id, references(:categories, on_delete: :delete_all), []} ]}
     assert SQL.execute_ddl(create) == [
       "CREATE TABLE [posts] ([id] int IDENTITY(1,1), [category_id] BIGINT, ",
-      "CONSTRAINT [FK__posts_category_id] FOREIGN KEY ([category_id]) ",
+      "CONSTRAINT [posts_category_id_fkey] FOREIGN KEY ([category_id]) ",
       "REFERENCES [categories]([id]) ON DELETE CASCADE, ",
       "CONSTRAINT [PK__posts] PRIMARY KEY CLUSTERED ([id]))"
     ] |> IO.iodata_to_binary
@@ -699,15 +699,15 @@ defmodule Tds.Ecto.TdsTest do
     expected_ddl = [
       "ALTER TABLE [foo].[posts] ADD [title] nvarchar(100) NOT NULL CONSTRAINT [DF_foo_posts_title] DEFAULT (N'Untitled'); ",
       "ALTER TABLE [foo].[posts] ADD [author_id] BIGINT; ",
-      "ALTER TABLE [foo].[posts] ADD CONSTRAINT [FK_foo_posts_author_id] FOREIGN KEY ([author_id]) REFERENCES [foo].[author]([id]); ",
+      "ALTER TABLE [foo].[posts] ADD CONSTRAINT [posts_author_id_fkey] FOREIGN KEY ([author_id]) REFERENCES [foo].[author]([id]); ",
       "IF (OBJECT_ID(N'[DF_foo_posts_price]', 'D') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [DF_foo_posts_price];  END; ",
       "ALTER TABLE [foo].[posts] ALTER COLUMN [price] numeric(8,2) NULL; ",
       "IF (OBJECT_ID(N'[DF_foo_posts_cost]', 'D') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [DF_foo_posts_cost];  END; ",
       "ALTER TABLE [foo].[posts] ALTER COLUMN [cost] integer NULL; ",
       "ALTER TABLE [foo].[posts] ADD CONSTRAINT [DF_foo_posts_cost] DEFAULT (NULL) FOR [cost]; ",
-      "IF (OBJECT_ID(N'[FK_foo_posts_permalink_id]', 'F') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [FK_foo_posts_permalink_id];  END; ",
+      "IF (OBJECT_ID(N'[posts_permalink_id_fkey]', 'F') IS NOT NULL) BEGIN ALTER TABLE [foo].[posts] DROP CONSTRAINT [posts_permalink_id_fkey];  END; ",
       "ALTER TABLE [foo].[posts] ALTER COLUMN [permalink_id] BIGINT NOT NULL; ",
-      "ALTER TABLE [foo].[posts] ADD CONSTRAINT [FK_foo_posts_permalink_id] FOREIGN KEY ([permalink_id]) REFERENCES [foo].[permalinks]([id]); ",
+      "ALTER TABLE [foo].[posts] ADD CONSTRAINT [posts_permalink_id_fkey] FOREIGN KEY ([permalink_id]) REFERENCES [foo].[permalinks]([id]); ",
       "ALTER TABLE [foo].[posts] DROP COLUMN [summary]; "
     ] |> IO.iodata_to_binary
 
@@ -720,7 +720,7 @@ defmodule Tds.Ecto.TdsTest do
 
     assert SQL.execute_ddl(alter) == [
       "ALTER TABLE [posts] ADD [comment_id] BIGINT; ",
-      "ALTER TABLE [posts] ADD CONSTRAINT [FK__posts_comment_id] FOREIGN KEY ([comment_id]) REFERENCES [comments]([id]); "]
+      "ALTER TABLE [posts] ADD CONSTRAINT [posts_comment_id_fkey] FOREIGN KEY ([comment_id]) REFERENCES [comments]([id]); "]
       |> IO.iodata_to_binary
 
   end
@@ -731,9 +731,9 @@ defmodule Tds.Ecto.TdsTest do
             }
 
     assert SQL.execute_ddl(alter) == [
-      "IF (OBJECT_ID(N'[FK__posts_user_id]', 'F') IS NOT NULL) BEGIN ALTER TABLE [posts] DROP CONSTRAINT [FK__posts_user_id];  END; ",
+      "IF (OBJECT_ID(N'[posts_user_id_fkey]', 'F') IS NOT NULL) BEGIN ALTER TABLE [posts] DROP CONSTRAINT [posts_user_id_fkey];  END; ",
       "ALTER TABLE [posts] ALTER COLUMN [user_id] BIGINT; ",
-      "ALTER TABLE [posts] ADD CONSTRAINT [FK__posts_user_id] FOREIGN KEY ([user_id]) REFERENCES [users]([id]) ON DELETE CASCADE; "
+      "ALTER TABLE [posts] ADD CONSTRAINT [posts_user_id_fkey] FOREIGN KEY ([user_id]) REFERENCES [users]([id]) ON DELETE CASCADE; "
     ] |> IO.iodata_to_binary()
   end
 

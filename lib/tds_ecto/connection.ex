@@ -26,6 +26,7 @@ if Code.ensure_loaded?(Tds) do
       Tds.Protocol.connect(opts)
     end
 
+    @doc false
     def child_spec(opts) do
       Tds.child_spec(opts)
     end
@@ -138,9 +139,9 @@ if Code.ensure_loaded?(Tds) do
       case value do
         <<_::64, ?-, _::32, ?-, _::32, ?-, _::32, ?-, _::96>> ->
           {:ok, value} = Tds.UUID.dump(value)
-          {value, :binary}
+          {value, :uuid}
         any ->
-          {any, :binary}
+          {any, :uuid}
       end
     end
 
@@ -202,15 +203,15 @@ if Code.ensure_loaded?(Tds) do
 
     ## Transaction
 
-    def begin_transaction do
+    def begin_transaction() do
       "BEGIN TRANSACTION"
     end
 
-    def rollback do
+    def rollback() do
       "ROLLBACK TRANSACTION"
     end
 
-    def commit do
+    def commit() do
       "COMMIT TRANSACTION"
     end
 
@@ -803,15 +804,13 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp expr(%Tagged{value: binary, type: :uuid}, _sources, _query) when is_binary(binary) do
-      {:ok, binary} =
-        case binary do
-          <<_::64, ?-, _::32, ?-, _::32, ?-, _::32, ?-, _::96>> ->
-            Tds.UUID.dump(binary)
-
-          any ->
-            any
-        end
-      binary
+      case binary do
+        <<_::64, ?-, _::32, ?-, _::32, ?-, _::32, ?-, _::96>> ->
+          {:ok, value} = Tds.UUID.dump(binary)
+          value
+        any ->
+          any
+      end
     end
 
     defp expr(%Tagged{value: other, type: type}, sources, query)
@@ -1305,7 +1304,7 @@ if Code.ensure_loaded?(Tds) do
     end
 
     defp reference_name(%Reference{name: nil}, table, column),
-      do: quote_name("FK_#{table.prefix}_#{table.name}_#{column}")
+      do: quote_name("#{table.name}_#{column}_fkey")
 
     defp reference_name(%Reference{name: name}, _table, _column), do: quote_name(name)
 

@@ -11,8 +11,10 @@ ExUnit.start(
     :lock_for_update,
     # NOTE: there is bug with transaction timout, it works bt error is not returned Repo transaction function
     :disconnect_on_transaction_timout,
-    # TODO: floats
-    :primitive_types
+    # Note: this requires read uncommited, otherwise it is normal to lock :)
+    :transactions_are_not_shared_in_repo,
+
+    :with_conflict_target, :with_conflict_ignore
   ]
 )
 
@@ -97,7 +99,11 @@ end
 
 :dbg.tracer()
 :dbg.p(:all, :c)
-# :dbg.tpl(Tds.Types, :decode_decimal, :x)
+# :dbg.tpl(Tds.Protocol, :handle_begin, :x)
+# :dbg.tpl(Tds.Protocol, :handle_commit, :x)
+# :dbg.tpl(Tds.Protocol, :handle_rollback, :x)
+# :dbg.tpl(Tds.Protocol, :handle_prepare, :x)
+# :dbg.tpl(Tds.Protocol, :handle_exec, :x)
 
 :erlang.system_flag(:backtrace_depth, 50)
 
