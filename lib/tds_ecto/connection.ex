@@ -903,7 +903,7 @@ if Code.ensure_loaded?(Tds) do
               _ ->
                 error!(
                   nil,
-                  "TDS addapter do not support query of external database or linked server table. Please create SYNONIM!"
+                  "TDS addapter do not support query of external database or linked server table. Please create SYNONYM!"
                 )
             end
 
