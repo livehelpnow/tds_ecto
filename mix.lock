@@ -10,7 +10,7 @@
   "postgrex": {:hex, :postgrex, "0.7.0"},
   "redbug": {:hex, :redbug, "1.2.0", "75c09b306471cee01ac4bdb727c33ca671a48d7ab7acaf090c557f2e5bc02620", [:rebar3], [], "hexpm"},
   "rexbug": {:hex, :rexbug, "1.0.0", "52b5d25c423f1c31ecce6960a556cac6391f62d61945f305248b07149567456c", [:mix], [{:redbug, "~> 1.2", [hex: :redbug, repo: "hexpm", optional: false]}], "hexpm"},
-  "tds": {:hex, :tds, "1.1.2", "fb438113ae9c3e4a3e5c705cb9edba49bf041126e736dbaf716d6c8ffdc7f303", [:mix], [{:db_connection, "~> 1.1", [hex: :db_connection, repo: "hexpm", optional: false]}, {:decimal, "~> 1.4", [hex: :decimal, repo: "hexpm", optional: false]}], "hexpm"},
+  "tds": {:hex, :tds, "1.1.4", "85e2960c496c7c47d2ca4b5d93f94d6f8d29848b65911aeb8e992a06386c30c5", [:mix], [{:db_connection, "~> 1.1", [hex: :db_connection, repo: "hexpm", optional: false]}, {:decimal, "~> 1.4", [hex: :decimal, repo: "hexpm", optional: false]}], "hexpm"},
   "timex": {:hex, :timex, "0.14.3"},
   "tzdata": {:hex, :tzdata, "0.1.6"},
 }
