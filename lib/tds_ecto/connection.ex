@@ -654,7 +654,8 @@ if Code.ensure_loaded?(Tds) do
     end
 
     # :. - attribure, table alias name can be get from sources by passing index
-    defp expr({{:., _, [{:&, _, [idx]}, field]}, _, []}, sources, _query) when is_atom(field) do
+    defp expr({{:., _, [{:&, _, [idx]}, field]}, _, []}, sources, _query)
+    when is_atom(field) or is_binary(field) do
       {_, name, _} = elem(sources, idx)
       "#{name}.#{quote_name(field)}"
     end
