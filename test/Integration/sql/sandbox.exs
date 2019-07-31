@@ -91,6 +91,8 @@ defmodule Ecto.Integration.SandboxTest do
 
   @tag :disconnect_on_transaction_timout
   test "disconnects sandbox on transaction timeouts" do
+    # todo: timout should be set to milliseconds before first byte arrives,
+    # if that is not the case it should return {:disconnect, "timed out", s}
     Sandbox.checkout(TestRepo)
     assert capture_log(fn ->
       catch_error(

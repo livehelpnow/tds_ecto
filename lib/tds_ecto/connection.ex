@@ -190,8 +190,6 @@ if Code.ensure_loaded?(Tds) do
       Application.get_env(:ecto, :json_library)
     end
 
-
-
     def to_constraints(%Tds.Error{
           mssql: %{
             number: errorcode,
@@ -199,28 +197,6 @@ if Code.ensure_loaded?(Tds) do
           }
         }) do
       Tds.Ecto.ErrorCode.get_constraint_violations(errorcode, message)
-    end
-
-    ## Transaction
-
-    def begin_transaction() do
-      "BEGIN TRANSACTION"
-    end
-
-    def rollback() do
-      "ROLLBACK TRANSACTION"
-    end
-
-    def commit() do
-      "COMMIT TRANSACTION"
-    end
-
-    def savepoint(savepoint) do
-      "SAVE TRANSACTION #{savepoint}"
-    end
-
-    def rollback_to_savepoint(savepoint) do
-      "ROLLBACK TRANSACTION #{savepoint}; #{savepoint(savepoint)}"
     end
 
     ## Query

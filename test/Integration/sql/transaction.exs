@@ -151,7 +151,7 @@ defmodule Ecto.Integration.TransactionTest do
         receive do
           :commit -> :ok
         after
-          5000 -> raise "timeout"
+          5000 -> raise "timeout :commit"
         end
       end)
       send(pid, :committed)
@@ -160,7 +160,7 @@ defmodule Ecto.Integration.TransactionTest do
     receive do
       :in_transaction -> :ok
     after
-      5000 -> raise "timeout"
+      5000 -> raise "timeout :in_transaction"
     end
     assert [] = PoolRepo.all(Trans)
 
@@ -168,7 +168,7 @@ defmodule Ecto.Integration.TransactionTest do
     receive do
       :committed -> :ok
     after
-      5000 -> raise "timeout"
+      5000 -> raise "timeout :committed"
     end
 
     assert [%Trans{text: "7"}] = PoolRepo.all(Trans)

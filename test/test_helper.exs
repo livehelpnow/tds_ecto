@@ -9,12 +9,13 @@ ExUnit.start(
     :modify_foreign_key_on_delete,
     :uses_usec,
     :lock_for_update,
-    # NOTE: there is bug with transaction timout, it works bt error is not returned Repo transaction function
+    # NOTE: there is bug with transaction timeout, it works bt error is not returned Repo transaction function
     :disconnect_on_transaction_timout,
     # Note: this requires read uncommited, otherwise it is normal to lock :)
     :transactions_are_not_shared_in_repo,
 
-    :with_conflict_target, :with_conflict_ignore
+    :with_conflict_target,
+    :with_conflict_ignore
   ]
 )
 
@@ -47,7 +48,9 @@ Application.put_env(
   database: "ecto_test",
   pool: Ecto.Adapters.SQL.Sandbox,
   ownership_pool: pool,
-  set_allow_snapshot_isolation: :on
+  # pool_size: 1, # temp fix for async tests, since they cause deadlocks
+  # set_transaction_isolation_level: :snapshot,
+  # set_allow_snapshot_isolation: :on
 )
 
 defmodule Ecto.Integration.TestRepo do
@@ -67,8 +70,9 @@ Application.put_env(
   database: "ecto_test",
   max_restarts: 20,
   max_seconds: 10,
-  pool_size: 10,
-  set_allow_snapshot_isolation: :on
+  # pool_size: 1, # temp fix for async tests, since they cause deadlocks
+  # set_transaction_isolation_level: :snapshot,
+  # set_allow_snapshot_isolation: :on
 )
 
 defmodule Ecto.Integration.PoolRepo do

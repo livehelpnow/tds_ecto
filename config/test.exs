@@ -3,6 +3,7 @@ use Mix.Config
 config :logger, level: :info
 
 config :ecto, lock_for_update: true
+config :ecto, async_integration_tests: false
 
 config :tds_ecto,
   opts: [
